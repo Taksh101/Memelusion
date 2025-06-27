@@ -13,21 +13,23 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Memelusion Home')),
-      body: Center(
-        child: ElevatedButton(
-          onPressed: () async {
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc('testuser')
-                .set({
-                  'username': 'Test User',
-                  'profilePictureUrl': '',
-                  'friends': [],
-                });
-          },
-          child: const Text('Create Test User'),
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Memelusion Home')),
+        body: Center(
+          child: ElevatedButton(
+            onPressed: () async {
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc('testuser')
+                  .set({
+                    'username': 'Test User',
+                    'profilePictureUrl': '',
+                    'friends': [],
+                  });
+            },
+            child: const Text('Create Test User'),
+          ),
         ),
       ),
     );
