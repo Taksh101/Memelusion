@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "562977872383",
+    "project_id": "memelusion-9303b",
+    "storage_bucket": "memelusion-9303b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:562977872383:android:5243a32c4b0bcf1a54efca",
+        "android_client_info": {
+          "package_name": "com.example.memelusion"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8jx40ljI8krjelIiErc7LLe-EGm8vIUE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
