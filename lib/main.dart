@@ -5,20 +5,12 @@ import 'firebase_options.dart'; // Make sure you generated this with flutterfire
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -30,14 +22,10 @@ class MyApp extends StatelessWidget {
                 .collection('users')
                 .doc('testuser')
                 .set({
-              'username': 'Test User',
-              'profilePictureUrl': '',
-              'friends': [],
-            });
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Test user created in Firestore!')),
-            );
+                  'username': 'Test User',
+                  'profilePictureUrl': '',
+                  'friends': [],
+                });
           },
           child: const Text('Create Test User'),
         ),
