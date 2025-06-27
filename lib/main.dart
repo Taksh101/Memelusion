@@ -11,16 +11,6 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(title: 'Memelusion', home: const HomeScreen());
-  }
-}
-
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -36,10 +26,6 @@ class HomeScreen extends StatelessWidget {
                   'profilePictureUrl': '',
                   'friends': [],
                 });
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Test user created in Firestore!')),
-            );
           },
           child: const Text('Create Test User'),
         ),
