@@ -5,9 +5,7 @@ import 'firebase_options.dart'; // Make sure you generated this with flutterfire
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
@@ -16,10 +14,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Memelusion',
-      home: const HomeScreen(),
-    );
+    return MaterialApp(title: 'Memelusion', home: const HomeScreen());
   }
 }
 
@@ -37,10 +32,10 @@ class HomeScreen extends StatelessWidget {
                 .collection('users')
                 .doc('testuser')
                 .set({
-              'username': 'Test User',
-              'profilePictureUrl': '',
-              'friends': [],
-            });
+                  'username': 'Test User',
+                  'profilePictureUrl': '',
+                  'friends': [],
+                });
 
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Test user created in Firestore!')),
