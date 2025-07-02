@@ -39,6 +39,6 @@ flutter:
   uses-material-design: true
 
   # Uncomment and add asset paths if you use local images/fonts
-  # assets:
-  #   - assets/images/
+  assets:
+    - assets/img/background.jpg
   #   - assets/memes/
