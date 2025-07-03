@@ -16,6 +16,7 @@ class _SignupPageState extends State<SignupPage> {
 
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
+  bool _isLoading = false;
 
   String? _usernameError;
   String? _emailError;
@@ -23,8 +24,20 @@ class _SignupPageState extends State<SignupPage> {
   String? _confirmPasswordError;
 
   Future<void> _signupUser() async {
+    if (_isLoading) return; // Prevent duplicate taps
+
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      // 1. Check if username already exists
+      // Clear previous field errors
+      setState(() {
+        _usernameError = null;
+        _emailError = null;
+      });
+
+      // 1. Check if username exists
       final usernameQuery =
           await FirebaseFirestore.instance
               .collection('users')
@@ -32,10 +45,10 @@ class _SignupPageState extends State<SignupPage> {
               .get();
 
       if (usernameQuery.docs.isNotEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("This username is already taken.")),
-        );
+        setState(() {
+          _usernameError = "This username is already taken.";
+          _isLoading = false;
+        });
         return;
       }
 
@@ -45,7 +58,7 @@ class _SignupPageState extends State<SignupPage> {
         password: _passwordController.text.trim(),
       );
 
-      // 3. Save profile in Firestore
+      // 3. Save profile
       await FirebaseFirestore.instance
           .collection('users')
           .doc(cred.user!.uid)
@@ -59,23 +72,40 @@ class _SignupPageState extends State<SignupPage> {
             'createdAt': Timestamp.now(),
           });
 
-      // 4. Nothing else needed - authStateChanges() will show HomePage
-    } on FirebaseAuthException catch (e) {
-      String message = "Signup failed.";
-      if (e.code == 'email-already-in-use') {
-        message = "This email is already registered.";
-      } else if (e.code == 'weak-password') {
-        message = "The password is too weak.";
-      }
       if (!mounted) return;
+
+      // 4. Show success
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ).showSnackBar(SnackBar(content: Text("Account created successfully.")));
+
+      // 5. Sign out user so they can log in manually
+      await FirebaseAuth.instance.signOut();
+
+      // 6. Navigate to Login
+      Navigator.pushReplacementNamed(context, '/login');
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        if (e.code == 'email-already-in-use') {
+          _emailError = "This email is already registered.";
+        } else if (e.code == 'weak-password') {
+          _passwordError = "The password is too weak.";
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Signup failed: ${e.message}")),
+          );
+        }
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Error: ${e.toString()}")));
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -85,44 +115,52 @@ class _SignupPageState extends State<SignupPage> {
       _emailError = null;
       _passwordError = null;
       _confirmPasswordError = null;
-
-      // Username
-      if (_usernameController.text.isEmpty) {
-        _usernameError = "Enter username";
-      } else if (!RegExp(
-        r'^[a-zA-Z0-9_]{3,20}$',
-      ).hasMatch(_usernameController.text)) {
-        _usernameError = "3-20 chars, letters/numbers/_";
-      }
-
-      // Email
-      if (_emailController.text.isEmpty) {
-        _emailError = "Enter email";
-      } else if (!RegExp(r'^\S+@\S+\.\S+$').hasMatch(_emailController.text)) {
-        _emailError = "Enter valid email";
-      }
-
-      // Password
-      if (_passwordController.text.isEmpty) {
-        _passwordError = "Enter password";
-      } else if (_passwordController.text.length < 6) {
-        _passwordError = "At least 6 characters";
-      } else if (!RegExp(
-        r'^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&]).{6,}$',
-      ).hasMatch(_passwordController.text)) {
-        _passwordError = "Must include letter, number, special char";
-      }
-
-      // Confirm Password
-      if (_confirmPasswordController.text != _passwordController.text) {
-        _confirmPasswordError = "Passwords don't match";
-      }
     });
 
-    if (_usernameError == null &&
-        _emailError == null &&
-        _passwordError == null &&
-        _confirmPasswordError == null) {
+    // Validation flags
+    bool isValid = true;
+
+    // Username
+    if (_usernameController.text.isEmpty) {
+      _usernameError = "Enter username";
+      isValid = false;
+    } else if (!RegExp(
+      r'^[a-zA-Z0-9_]{3,20}$',
+    ).hasMatch(_usernameController.text)) {
+      _usernameError = "3-20 chars, letters/numbers/_";
+      isValid = false;
+    }
+
+    // Email
+    if (_emailController.text.isEmpty) {
+      _emailError = "Enter email";
+      isValid = false;
+    } else if (!RegExp(r'^\S+@\S+\.\S+$').hasMatch(_emailController.text)) {
+      _emailError = "Enter valid email";
+      isValid = false;
+    }
+
+    // Password
+    if (_passwordController.text.isEmpty) {
+      _passwordError = "Enter password";
+      isValid = false;
+    } else if (_passwordController.text.length < 6) {
+      _passwordError = "At least 6 characters";
+      isValid = false;
+    } else if (!RegExp(
+      r'^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&]).{6,}$',
+    ).hasMatch(_passwordController.text)) {
+      _passwordError = "Include letter, number, special char";
+      isValid = false;
+    }
+
+    // Confirm Password
+    if (_confirmPasswordController.text != _passwordController.text) {
+      _confirmPasswordError = "Passwords don't match";
+      isValid = false;
+    }
+
+    if (isValid) {
       _signupUser();
     }
   }
@@ -216,7 +254,7 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                     SizedBox(height: 40),
                     ElevatedButton(
-                      onPressed: _validateFields,
+                      onPressed: _isLoading ? null : _validateFields,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.greenAccent,
                         shape: RoundedRectangleBorder(
@@ -227,10 +265,23 @@ class _SignupPageState extends State<SignupPage> {
                           vertical: 15,
                         ),
                       ),
-                      child: Text(
-                        "Signup",
-                        style: TextStyle(color: Colors.black, fontSize: 16),
-                      ),
+                      child:
+                          _isLoading
+                              ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.black,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : Text(
+                                "Signup",
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 16,
+                                ),
+                              ),
                     ),
                   ],
                 ),
