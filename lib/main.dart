@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:memelusion/screens/auth/signup_screen.dart';
+import 'package:memelusion/screens/auth/login_screen.dart';
+import 'package:memelusion/screens/home_screen.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  runApp(const MyApp());
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -17,28 +17,15 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(title: const Text('Memelusion Home')),
-        body: Center(
-          child: ElevatedButton(
-            onPressed: () async {
-              await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc('testuser')
-                  .set({
-                'username': 'Maharshi',
-                'profilePictureUrl': '',
-                'friends': [],
-              });
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Test user created in Firestore!')),
-              );
-            },
-            child: const Text('Create Test User'),
-          ),
-        ),
-      ),
+      debugShowCheckedModeBanner: false,
+      title: 'Memelusion',
+      theme: ThemeData.dark(),
+      initialRoute: '/signup',
+      routes: {
+        '/signup': (context) => SignupPage(),
+        '/login': (context) => LoginPage(),
+        '/home': (context) => HomePage(),
+      },
     );
   }
 }

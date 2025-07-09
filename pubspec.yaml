@@ -22,11 +22,12 @@ dependencies:
   # ✅ Firestore for Database
   cloud_firestore: ^4.15.4
 
-  # ✅ Firebase Storage for Images
-  firebase_storage: ^11.6.5
 
   # ✅ State management if needed (optional)
   provider: ^6.1.2
+  http: ^1.2.1
+  firebase_storage: ^11.7.1
+  uuid: ^4.3.3
 
 
 dev_dependencies:
@@ -38,6 +39,6 @@ flutter:
   uses-material-design: true
 
   # Uncomment and add asset paths if you use local images/fonts
-  # assets:
-  #   - assets/images/
+  assets:
+    - assets/img/background.jpg
   #   - assets/memes/
