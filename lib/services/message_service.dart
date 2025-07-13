@@ -10,6 +10,7 @@ class ChatService {
     required String senderUsername,
     required String receiverUsername,
     required String text,
+    String? memeUrl, // Optional meme URL
   }) async {
     try {
       final sorted = _getChatId(senderUsername, receiverUsername);
@@ -20,8 +21,8 @@ class ChatService {
 
       final timestamp = Timestamp.now();
       final expiresAt = Timestamp.fromDate(
-        DateTime.now().add(Duration(days: 30)),
-      );
+        DateTime.now().add(Duration(hours: 24)),
+      ); // 24 hours expiration
 
       // Save the message
       await chatRef.add({
@@ -30,6 +31,7 @@ class ChatService {
         'receiverUsername': receiverUsername,
         'timestamp': timestamp,
         'expiresAt': expiresAt,
+        'memeUrl': memeUrl, // Store meme URL if provided
       });
 
       // Add a notification to the receiver
@@ -61,22 +63,27 @@ class ChatService {
             .collection('chats')
             .doc(_getChatId(user1, user2))
             .collection('messages')
+            .where(
+              'expiresAt',
+              isGreaterThan: Timestamp.now(),
+            ) // Only get messages that haven't expired
             .orderBy('timestamp', descending: true)
             .get();
 
     return snapshot.docs.map((doc) {
       final data = doc.data();
       return {
-        'messageId': data['messageId'],
+        'messageId': doc.id, // Use document ID as messageId
         'from': data['senderUsername'],
         'to': data['receiverUsername'],
         'text': data['text'],
         'timestamp': data['timestamp'],
+        'memeUrl': data['memeUrl'], // Include meme URL if available
       };
     }).toList();
   }
 
-  /// Stream messages between two users in realtime
+  /// Stream messages between two users in real-time
   Stream<List<Map<String, dynamic>>> streamMessages({
     required String username1,
     required String username2,
@@ -87,16 +94,22 @@ class ChatService {
         .collection('chats')
         .doc(sorted)
         .collection('messages')
+        .where(
+          'expiresAt',
+          isGreaterThan: Timestamp.now(),
+        ) // Only stream messages that haven't expired
         .orderBy('timestamp', descending: false)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((doc) {
+            final data = doc.data();
             return {
-              'text': doc['text'] ?? '',
-              'senderUsername': doc['senderUsername'] ?? '',
-              'receiverUsername': doc['receiverUsername'] ?? '',
-              'timestamp': doc['timestamp'] ?? Timestamp.now(),
-              'expiresAt': doc['expiresAt'] ?? Timestamp.now(),
+              'text': data['text'] ?? '',
+              'senderUsername': data['senderUsername'] ?? '',
+              'receiverUsername': data['receiverUsername'] ?? '',
+              'timestamp': data['timestamp'] ?? Timestamp.now(),
+              'expiresAt': data['expiresAt'] ?? Timestamp.now(),
+              'memeUrl': data['memeUrl'], // Include meme URL if available
             };
           }).toList();
         });

@@ -12,7 +12,13 @@ class MemeService {
     if (docs.isEmpty) return null;
 
     final randomDoc = docs[DateTime.now().millisecondsSinceEpoch % docs.length];
-    return {'memeId': randomDoc.id, ...randomDoc.data()};
+    final data = randomDoc.data();
+
+    return {
+      'memeId': randomDoc.id,
+      'imageUrl': data['imageUrl'],
+      'shareCount': data['shareCount'] ?? 0, // Safely extract shareCount
+    };
   }
 
   // Increment share count and notify receiver

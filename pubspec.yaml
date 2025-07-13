@@ -21,6 +21,8 @@ dependencies:
 
   # ✅ Firestore for Database
   cloud_firestore: ^4.15.4
+  image_picker: ^1.0.4
+  image_picker_for_web: ^3.0.1
 
 
   # ✅ State management if needed (optional)
@@ -41,4 +43,5 @@ flutter:
   # Uncomment and add asset paths if you use local images/fonts
   assets:
     - assets/img/background.jpg
+    - assets/img/default_profile.png
   #   - assets/memes/

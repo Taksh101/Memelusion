@@ -16,20 +16,25 @@ class _LoginPageState extends State<LoginPage> {
   String? _passwordError;
 
   bool _passwordVisible = false;
+  bool _isAdminLogin = false;
 
   Future<void> _loginUser() async {
     try {
-      // 1. Look up email by username
+      print("🔍 Fetching user by username: ${_usernameController.text.trim()}");
+
       final snapshot =
           await FirebaseFirestore.instance
               .collection('users')
               .where('username', isEqualTo: _usernameController.text.trim())
               .get();
 
+      print("📄 Documents found: ${snapshot.docs.length}");
+
       if (snapshot.docs.isEmpty) {
         if (!mounted) return;
         setState(() {
-          _usernameError = "Invalid username";
+          _usernameError =
+              _isAdminLogin ? "Invalid admin username" : "Invalid username";
           _passwordError = null;
         });
         return;
@@ -37,37 +42,59 @@ class _LoginPageState extends State<LoginPage> {
 
       final userData = snapshot.docs.first.data();
       final email = userData['email'];
+      final isAdmin = userData['isAdmin'] ?? false;
 
-      // 2. Try signing in
+      if (_isAdminLogin && !isAdmin) {
+        setState(() {
+          _usernameError = "Not an admin account";
+          _passwordError = null;
+        });
+        return;
+      }
+
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: _passwordController.text.trim(),
       );
 
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushReplacementNamed(
+        context,
+        _isAdminLogin ? '/admin' : '/home',
+      );
     } on FirebaseAuthException catch (e) {
+      print("❌ FirebaseAuthException: ${e.code}");
+
       if (!mounted) return;
       setState(() {
         _usernameError = null;
         _passwordError = null;
 
         if (e.code == 'wrong-password') {
-          _passwordError = "Invalid password";
+          _passwordError =
+              _isAdminLogin ? "Invalid admin password" : "Invalid password";
         } else if (e.code == 'user-not-found') {
-          _usernameError = "Invalid username";
+          _usernameError =
+              _isAdminLogin ? "Invalid admin username" : "Invalid username";
         } else if (e.code == 'invalid-credential') {
-          _passwordError = "Invalid password";
+          _passwordError =
+              _isAdminLogin ? "Invalid admin password" : "Invalid password";
         } else {
           _passwordError = "Something went wrong";
         }
       });
     } catch (e) {
+      print("❗Unexpected error: $e");
+
       if (!mounted) return;
       setState(() {
         _usernameError = null;
         _passwordError = "Something went wrong";
       });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     }
   }
 
@@ -148,7 +175,28 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       errorText: _passwordError,
                     ),
-                    SizedBox(height: 40),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _isAdminLogin,
+                          onChanged: (val) {
+                            setState(() {
+                              _isAdminLogin = val ?? false;
+                            });
+                          },
+                          activeColor: Colors.greenAccent,
+                        ),
+                        const Text(
+                          "Login as admin",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
                     ElevatedButton(
                       onPressed: _validateFields,
                       style: ElevatedButton.styleFrom(
@@ -161,18 +209,18 @@ class _LoginPageState extends State<LoginPage> {
                           vertical: 15,
                         ),
                       ),
-                      child: Text(
+                      child: const Text(
                         "Login",
                         style: TextStyle(color: Colors.black, fontSize: 16),
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
+                    const Text(
                       "Don't have an account?",
                       style: TextStyle(color: Colors.white),
                     ),
@@ -182,7 +230,7 @@ class _LoginPageState extends State<LoginPage> {
                             context,
                             '/signup',
                           ),
-                      child: Text(
+                      child: const Text(
                         "Signup",
                         style: TextStyle(
                           color: Colors.greenAccent,
@@ -220,12 +268,12 @@ class _LoginPageState extends State<LoginPage> {
           child: TextField(
             controller: controller,
             obscureText: obscureText,
-            style: TextStyle(color: Colors.white),
+            style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               prefixIcon: Icon(icon, color: Colors.greenAccent),
               suffixIcon: suffixIcon,
               hintText: hint,
-              hintStyle: TextStyle(color: Colors.white),
+              hintStyle: const TextStyle(color: Colors.white),
               border: InputBorder.none,
             ),
           ),
@@ -235,7 +283,7 @@ class _LoginPageState extends State<LoginPage> {
             padding: const EdgeInsets.only(left: 16, top: 4),
             child: Text(
               errorText,
-              style: TextStyle(color: Colors.redAccent, fontSize: 13),
+              style: const TextStyle(color: Colors.redAccent, fontSize: 13),
             ),
           ),
       ],
