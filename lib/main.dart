@@ -7,6 +7,7 @@ import 'package:memelusion/screens/admin_panel.dart';
 import 'package:memelusion/screens/notifications_screen.dart';
 import 'package:memelusion/screens/profile_screen.dart';
 import 'package:memelusion/screens/chat_screen.dart';
+import 'package:memelusion/screens/settings_screen.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -31,6 +32,7 @@ class MyApp extends StatelessWidget {
         '/admin': (context) => AdminPanel(),
         '/notifications': (context) => NotificationsPage(),
         '/chat': (context) => ChatScreen(),
+        '/settings': (context) => SettingsScreen(),
       },
     );
   }

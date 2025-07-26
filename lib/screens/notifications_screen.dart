@@ -1,7 +1,3 @@
-// ────────────────────────────────────────────
-// notifications_screen.dart
-// route: '/notifications'  ->  const NotificationsPage()
-// ────────────────────────────────────────────
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -33,9 +29,14 @@ class _NotificationsPageState extends State<NotificationsPage> {
     final raw = List<Map<String, dynamic>>.from(data['notifications'] ?? []);
 
     raw.sort(
-      (a, b) => DateTime.parse(
-        b['timestamp'],
-      ).compareTo(DateTime.parse(a['timestamp'])),
+      (a, b) {
+        DateTime getTime(dynamic t) {
+          if (t is Timestamp) return t.toDate();
+          if (t is String) return DateTime.parse(t);
+          return DateTime.now();
+        }
+        return getTime(b['timestamp']).compareTo(getTime(a['timestamp']));
+      },
     );
 
     // mark unseen → seen (only the flag)
@@ -155,20 +156,49 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       padding: const EdgeInsets.only(right: 20),
                       child: const Icon(Icons.delete, color: Colors.white),
                     ),
-                    direction: DismissDirection.endToStart,
-                    onDismissed: (_) => _delete(n),
+                    direction:
+                        n['type'] == 'friend_request'
+                            ? DismissDirection.none
+                            : DismissDirection.endToStart,
+                    onDismissed:
+                        n['type'] == 'friend_request'
+                            ? null
+                            : (_) => _delete(n),
                     child: Card(
                       color: Colors.grey[900],
-                      child: ListTile(
-                        title: Text(
-                          _title(n),
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        subtitle: Text(
-                          _timeAgo(n['timestamp']),
-                          style: const TextStyle(color: Colors.white54),
-                        ),
-                        trailing: _trailing(n),
+                      child: FutureBuilder<DocumentSnapshot>(
+                        future: _users
+                            .where('username', isEqualTo: n['from'])
+                            .limit(1)
+                            .get()
+                            .then((s) => s.docs.first),
+                        builder: (context, snapshot) {
+                          String profilePic = '';
+                          if (snapshot.hasData && snapshot.data!.exists) {
+                            profilePic = snapshot.data!['profilePic'] ?? '';
+                          }
+                          return ListTile(
+                            leading: CircleAvatar(
+                              radius: 20,
+                              backgroundImage:
+                                  profilePic.isNotEmpty
+                                      ? NetworkImage(profilePic)
+                                      : const AssetImage(
+                                            'assets/img/default_profile.png',
+                                          )
+                                          as ImageProvider,
+                            ),
+                            title: Text(
+                              _title(n),
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            subtitle: Text(
+                              _timeAgo(n['timestamp']),
+                              style: const TextStyle(color: Colors.white54),
+                            ),
+                            trailing: _trailing(n),
+                          );
+                        },
                       ),
                     ),
                   );
@@ -183,13 +213,24 @@ class _NotificationsPageState extends State<NotificationsPage> {
         return '${n['from']} sent you a friend request';
       case 'friend_accept':
         return '${n['from']} accepted your friend request';
+      case 'message':
+        return '${n['from']} sent you a message';
+      case 'meme_share':
+        return '${n['from']} shared a meme with you';
       default:
         return 'Unknown notification';
     }
   }
 
-  String _timeAgo(String iso) {
-    final dt = DateTime.parse(iso);
+  String _timeAgo(dynamic ts) {
+    DateTime dt;
+    if (ts is Timestamp) {
+      dt = ts.toDate();
+    } else if (ts is String) {
+      dt = DateTime.parse(ts);
+    } else {
+      return '';
+    }
     final diff = DateTime.now().difference(dt);
     if (diff.inMinutes < 1) return 'just now';
     if (diff.inHours < 1) return '${diff.inMinutes}m ago';

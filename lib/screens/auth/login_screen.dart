@@ -17,6 +17,7 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _passwordVisible = false;
   bool _isAdminLogin = false;
+  bool _isLoggingIn = false; // New state for login spinner
 
   Future<void> _loginUser() async {
     try {
@@ -47,6 +48,15 @@ class _LoginPageState extends State<LoginPage> {
       if (_isAdminLogin && !isAdmin) {
         setState(() {
           _usernameError = "Not an admin account";
+          _passwordError = null;
+        });
+        return;
+      }
+
+      // New check: Block admin login if checkbox is unchecked
+      if (isAdmin && !_isAdminLogin) {
+        setState(() {
+          _usernameError = "Check 'Login as admin' for admin accounts";
           _passwordError = null;
         });
         return;
@@ -111,139 +121,155 @@ class _LoginPageState extends State<LoginPage> {
       }
     });
 
-    if (_usernameError == null && _passwordError == null) {
-      _loginUser();
+    if (_usernameError == null && _passwordError == null && !_isLoggingIn) {
+      setState(() => _isLoggingIn = true); // Start spinner
+      _loginUser().then((_) {
+        if (mounted) {
+          setState(() => _isLoggingIn = false); // Stop spinner
+        }
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.asset('assets/img/background.jpg', fit: BoxFit.cover),
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
-            child: Container(color: Colors.black.withOpacity(0.3)),
-          ),
-          SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 80),
-            child: Column(
-              children: [
-                Text(
-                  "Login",
-                  style: TextStyle(
-                    fontSize: 36,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+      body: Scaffold(
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset('assets/img/background.jpg', fit: BoxFit.cover),
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
+              child: Container(color: Colors.black.withOpacity(0.3)),
+            ),
+            SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 80),
+              child: Column(
+                children: [
+                  Text(
+                    "Login",
+                    style: TextStyle(
+                      fontSize: 36,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  "Welcome back! Log in to continue.",
-                  style: TextStyle(fontSize: 16, color: Colors.white70),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 40),
-                Column(
-                  children: [
-                    _buildTextField(
-                      controller: _usernameController,
-                      hint: "Username",
-                      icon: Icons.person,
-                      errorText: _usernameError,
-                    ),
-                    SizedBox(height: 20),
-                    _buildTextField(
-                      controller: _passwordController,
-                      hint: "Password",
-                      icon: Icons.lock,
-                      obscureText: !_passwordVisible,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _passwordVisible
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                          color: Colors.greenAccent,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _passwordVisible = !_passwordVisible;
-                          });
-                        },
+                  SizedBox(height: 8),
+                  Text(
+                    "Welcome back! Log in to continue.",
+                    style: TextStyle(fontSize: 16, color: Colors.white70),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 40),
+                  Column(
+                    children: [
+                      _buildTextField(
+                        controller: _usernameController,
+                        hint: "Username",
+                        icon: Icons.person,
+                        errorText: _usernameError,
                       ),
-                      errorText: _passwordError,
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _isAdminLogin,
-                          onChanged: (val) {
+                      SizedBox(height: 20),
+                      _buildTextField(
+                        controller: _passwordController,
+                        hint: "Password",
+                        icon: Icons.lock,
+                        obscureText: !_passwordVisible,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _passwordVisible
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                            color: Colors.greenAccent,
+                          ),
+                          onPressed: () {
                             setState(() {
-                              _isAdminLogin = val ?? false;
+                              _passwordVisible = !_passwordVisible;
                             });
                           },
-                          activeColor: Colors.greenAccent,
                         ),
-                        const Text(
-                          "Login as admin",
+                        errorText: _passwordError,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Checkbox(
+                            value: _isAdminLogin,
+                            onChanged: (val) {
+                              setState(() {
+                                _isAdminLogin = val ?? false;
+                              });
+                            },
+                            activeColor: Colors.greenAccent,
+                          ),
+                          const Text(
+                            "Login as admin",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: _isLoggingIn ? null : _validateFields, // Disable when logging in
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.greenAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 80,
+                            vertical: 15,
+                          ),
+                        ),
+                        child: _isLoggingIn
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.black,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                "Login",
+                                style: TextStyle(color: Colors.black, fontSize: 16),
+                              ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        "Don't have an account?",
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      TextButton(
+                        onPressed:
+                            () => Navigator.pushReplacementNamed(
+                              context,
+                              '/signup',
+                            ),
+                        child: const Text(
+                          "Signup",
                           style: TextStyle(
-                            color: Colors.white,
+                            color: Colors.greenAccent,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _validateFields,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.greenAccent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 80,
-                          vertical: 15,
-                        ),
                       ),
-                      child: const Text(
-                        "Login",
-                        style: TextStyle(color: Colors.black, fontSize: 16),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      "Don't have an account?",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    TextButton(
-                      onPressed:
-                          () => Navigator.pushReplacementNamed(
-                            context,
-                            '/signup',
-                          ),
-                      child: const Text(
-                        "Signup",
-                        style: TextStyle(
-                          color: Colors.greenAccent,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
