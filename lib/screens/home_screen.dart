@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:memelusion/screens/chat_screen.dart';
@@ -128,7 +129,7 @@ class _HomePageState extends State<HomePage> {
 
     if (dx.abs() > 150) {
       final liked = dx > 0;
-      _showFeedback(liked ? '❤' : '👎');
+      _showFeedback(liked ? '❤' : '');
       if (liked) await _handleLike();
       _getRandomMeme();
     } else if (dy < -150) {
@@ -147,6 +148,7 @@ class _HomePageState extends State<HomePage> {
     if (uid == null) return;
 
     final memeRef = _firestore.collection('memes').doc(currentMeme!['id']);
+    final userRef = _firestore.collection('users').doc(uid);
     final snap = await memeRef.get();
     final likedBy = List<String>.from(snap['likedBy'] ?? []);
 
@@ -156,6 +158,8 @@ class _HomePageState extends State<HomePage> {
       'likeCount': FieldValue.increment(1),
       'likedBy': FieldValue.arrayUnion([uid]),
     });
+
+    await userRef.update({'likedMemesCount': FieldValue.increment(1)});
 
     setState(() {
       currentMeme!['likeCount'] = (currentMeme!['likeCount'] as int) + 1;
@@ -190,14 +194,6 @@ class _HomePageState extends State<HomePage> {
 
     setState(() {});
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(isSaved ? '✗ Removed from Saved' : '✓ Meme Saved'),
-        duration: const Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
   }
 
   Widget _buildCard() {
@@ -215,8 +211,8 @@ class _HomePageState extends State<HomePage> {
                 _aspectRatio != null
                     ? ConstrainedBox(
                       constraints: const BoxConstraints(
-                        maxHeight: 460, // Slightly increased
-                        maxWidth: 340, // Slightly increased
+                        maxHeight: 460,
+                        maxWidth: 340,
                       ),
                       child: AspectRatio(
                         aspectRatio: _aspectRatio!,
@@ -292,7 +288,7 @@ class _HomePageState extends State<HomePage> {
   Widget _buildLikeCountBadge() {
     final count = currentMeme?['likeCount'] ?? 0;
     return _badge(
-      Icon(Icons.favorite, size: 16, color: Colors.redAccent),
+      Icon(Icons.favorite, size: 16, color: Colors.redAccent[400]),
       count,
     );
   }
@@ -370,20 +366,30 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       const Text(
                         "Share Meme",
-                        style: TextStyle(color: Colors.white, fontSize: 18),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontFamily: 'Inter',
+                        ),
                       ),
                       const SizedBox(height: 12),
                       if (friends.isEmpty)
                         const Text(
                           "No friends found.",
-                          style: TextStyle(color: Colors.white70),
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontFamily: 'Inter',
+                          ),
                         )
                       else
                         ...friends.map(
                           (friend) => CheckboxListTile(
                             title: Text(
                               friend,
-                              style: const TextStyle(color: Colors.white70),
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontFamily: 'Inter',
+                              ),
                             ),
                             value: selectedFriends.contains(friend),
                             onChanged: (val) {
@@ -393,19 +399,22 @@ class _HomePageState extends State<HomePage> {
                                     : selectedFriends.remove(friend);
                               });
                             },
-                            activeColor: Colors.greenAccent,
+                            activeColor: Colors.greenAccent[400],
                           ),
                         ),
                       const SizedBox(height: 14),
                       if (friends.isNotEmpty)
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.greenAccent,
+                            backgroundColor: Colors.greenAccent[400],
                             foregroundColor: Colors.black,
                             minimumSize: const Size(double.infinity, 46),
                           ),
                           icon: const Icon(Icons.send),
-                          label: const Text('Send'),
+                          label: const Text(
+                            'Send',
+                            style: TextStyle(fontFamily: 'Inter'),
+                          ),
                           onPressed:
                               selectedFriends.isEmpty
                                   ? null
@@ -413,7 +422,11 @@ class _HomePageState extends State<HomePage> {
                                     for (final friend in selectedFriends) {
                                       await _memeService.shareMeme(
                                         memeId: currentMeme!['id'],
-                                        senderUsername: currentUser.uid,
+                                        senderUsername: await _firestore
+                                            .collection('users')
+                                            .doc(currentUser.uid)
+                                            .get()
+                                            .then((doc) => doc['username']),
                                         receiverUsername: friend,
                                         imageUrl: currentMeme!['imageUrl'],
                                       );
@@ -424,13 +437,27 @@ class _HomePageState extends State<HomePage> {
                                         .update({
                                           'shareCount': FieldValue.increment(1),
                                         });
+                                    await _firestore
+                                        .collection('users')
+                                        .doc(currentUser.uid)
+                                        .update({
+                                          'sharedMemesCount':
+                                              FieldValue.increment(1),
+                                        });
                                     setState(() {
                                       currentMeme!['shareCount'] =
                                           (currentMeme!['shareCount'] as int) +
                                           1;
                                     });
                                     Navigator.pop(context);
-                                    _showFeedback("✅");
+                                    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Meme Shared"),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
                                   },
                         ),
                     ],
@@ -456,6 +483,7 @@ class _HomePageState extends State<HomePage> {
             color: Colors.greenAccent,
             fontWeight: FontWeight.w600,
             letterSpacing: 1.2,
+            fontFamily: 'Inter',
           ),
         ),
         leading: IconButton(
@@ -464,7 +492,6 @@ class _HomePageState extends State<HomePage> {
             color: Colors.greenAccent,
           ),
           onPressed: () {
-            // We just pass the friend’s username; ChatScreen builds / joins the room.
             Navigator.pushNamed(context, '/chat');
           },
         ),
@@ -489,13 +516,14 @@ class _HomePageState extends State<HomePage> {
                           (cat) => CheckedPopupMenuItem<String>(
                             value: cat,
                             checked: selectedCategories.contains(cat),
-                            child: Text(cat),
+                            child: Text(
+                              cat,
+                              style: const TextStyle(fontFamily: 'Inter'),
+                            ),
                           ),
                         )
                         .toList(),
           ),
-
-          // ✅ Notification Badge
           StreamBuilder<DocumentSnapshot>(
             stream:
                 FirebaseFirestore.instance
@@ -557,7 +585,6 @@ class _HomePageState extends State<HomePage> {
               );
             },
           ),
-
           const SizedBox(width: 6),
         ],
       ),
