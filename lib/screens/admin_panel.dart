@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:memelusion/screens/utils.dart' as utils;
+
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AdminPanel extends StatefulWidget {
@@ -270,7 +272,9 @@ class _AdminPanelState extends State<AdminPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return WillPopScope(
+      onWillPop: () async => await utils.showExitConfirmationDialog(context), 
+    child : Scaffold(
       appBar: AppBar(
         title: const Text("Admin Panel"),
         backgroundColor: Colors.black,
@@ -322,7 +326,7 @@ class _AdminPanelState extends State<AdminPanel> {
                 : _showUserList
                 ? _buildUserListView()
                 : _buildUploadView(),
-      ),
+      ),),
     );
   }
 

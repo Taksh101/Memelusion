@@ -341,7 +341,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       await FirebaseAuth.instance.signOut();
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/login');
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
       }
     } catch (e) {
       if (mounted) {
@@ -474,11 +474,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: Colors.white70,
-                  size: 16,
-                ),
+                Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
               ],
             ),
           ),
