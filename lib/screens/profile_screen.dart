@@ -673,8 +673,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           user['profilePic'] != ''
                                               ? NetworkImage(user['profilePic'])
                                               : const AssetImage(
-                                                  'assets/img/default_profile.png',
-                                                ) as ImageProvider,
+                                                    'assets/img/default_profile.png',
+                                                  )
+                                                  as ImageProvider,
                                       radius: 22,
                                     ),
                                   ),
@@ -695,28 +696,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     child: Builder(
                                       builder: (_) {
                                         final username = user['username'];
-                                        if ((userData?['friends'] ?? []).contains(
-                                          username,
-                                        )) {
+                                        if ((userData?['friends'] ?? [])
+                                            .contains(username)) {
                                           return ElevatedButton(
                                             onPressed: null,
                                             style: ElevatedButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 16.0,
-                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16.0,
+                                                  ),
                                             ),
                                             child: const Text("Friend"),
                                           );
                                         }
-                                        if ((user['friendRequests'] ?? []).contains(
-                                          myUsername,
-                                        )) {
+                                        if ((user['friendRequests'] ?? [])
+                                            .contains(myUsername)) {
                                           return ElevatedButton(
                                             onPressed: null,
                                             style: ElevatedButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 16.0,
-                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16.0,
+                                                  ),
                                             ),
                                             child: const Text("Sent"),
                                           );
@@ -733,7 +734,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                 'notifications':
                                                     FieldValue.arrayUnion([
                                                       {
-                                                        'type': 'friend_request',
+                                                        'type':
+                                                            'friend_request',
                                                         'from': myUsername,
                                                         'timestamp':
                                                             DateTime.now()
@@ -803,198 +805,235 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
     );
   }
+
   Future<void> _searchFriends() async {
-  String query = '';
-  List<Map<String, dynamic>> results = [];
+    String query = '';
+    List<Map<String, dynamic>> results = [];
 
-  await showDialog(
-    context: context,
-    builder: (dialogContext) {
-      return StatefulBuilder(
-        builder: (context, setStateSB) => SizedBox(
-          width: MediaQuery.of(dialogContext).size.width * 0.98, // Very wide dialog
-          child: AlertDialog(
-            backgroundColor: Colors.grey[900],
-            title: const Text(
-              "Search Friends",
-              style: TextStyle(color: Colors.white),
-            ),
-            content: Container(
-              constraints: const BoxConstraints(
-                maxWidth: 600,
-              ), // Extra room for long usernames
-              padding: const EdgeInsets.symmetric(horizontal: 12.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    onChanged: (val) async {
-                      query = val.trim();
-                      print('🔍 Searching for friend starting with: $query');
-                      if (query.isEmpty) {
-                        setStateSB(() => results = []);
-                        print('📭 Empty query, cleared results');
-                        return;
-                      }
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder:
+              (context, setStateSB) => SizedBox(
+                width:
+                    MediaQuery.of(dialogContext).size.width *
+                    0.98, // Very wide dialog
+                child: AlertDialog(
+                  backgroundColor: Colors.grey[900],
+                  title: const Text(
+                    "Search Friends",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  content: Container(
+                    constraints: const BoxConstraints(
+                      maxWidth: 600,
+                    ), // Extra room for long usernames
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          onChanged: (val) async {
+                            query = val.trim();
+                            print(
+                              '🔍 Searching for friend starting with: $query',
+                            );
+                            if (query.isEmpty) {
+                              setStateSB(() => results = []);
+                              print('📭 Empty query, cleared results');
+                              return;
+                            }
 
-                      try {
-                        // Get the current user's friends list (usernames)
-                        final userDoc = await FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(currentUser!.uid)
-                            .get();
-                        final List<String> friends =
-                            List<String>.from(userDoc['friends'] ?? []);
+                            try {
+                              // Get the current user's friends list (usernames)
+                              final userDoc =
+                                  await FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(currentUser!.uid)
+                                      .get();
+                              final List<String> friends = List<String>.from(
+                                userDoc['friends'] ?? [],
+                              );
 
-                        if (friends.isEmpty) {
-                          setStateSB(() => results = []);
-                          print('📭 No friends found');
-                          return;
-                        }
+                              if (friends.isEmpty) {
+                                setStateSB(() => results = []);
+                                print('📭 No friends found');
+                                return;
+                              }
 
-                        // Search within friends list with partial matching
-                        final res = await FirebaseFirestore.instance
-                            .collection('users')
-                            .where('username', whereIn: friends)
-                            .where('username', isGreaterThanOrEqualTo: query)
-                            .where('username', isLessThanOrEqualTo: '$query\uf8ff')
-                            .get();
+                              // Search within friends list with partial matching
+                              final res =
+                                  await FirebaseFirestore.instance
+                                      .collection('users')
+                                      .where('username', whereIn: friends)
+                                      .where(
+                                        'username',
+                                        isGreaterThanOrEqualTo: query,
+                                      )
+                                      .where(
+                                        'username',
+                                        isLessThanOrEqualTo: '$query\uf8ff',
+                                      )
+                                      .get();
 
-                        results = res.docs
-                            .where((d) => d.id != currentUser!.uid)
-                            .map(
-                              (d) => {
-                                'username': d['username'] ?? '',
-                                'profilePic': d['profilePic'] ?? '',
-                                'ref': d.reference,
-                                'uid': d.id,
-                                'friendRequests': List<String>.from(
-                                  d['friendRequests'] ?? [],
-                                ),
-                              },
-                            )
-                            .toList();
-                        print(
-                          '✅ Found ${results.length} friends: ${results.map((u) => u['username']).toList()}',
-                        );
-                        setStateSB(() {});
-                      } catch (e) {
-                        print('❌ Error searching friends: $e');
-                        setStateSB(() => results = []);
-                      }
-                    },
-                    decoration: const InputDecoration(
-                      hintText: "Enter friend’s username",
-                      hintStyle: TextStyle(color: Colors.white70),
-                      border: OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Color.fromRGBO(33, 33, 33, 1),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 14.0,
-                      ),
-                    ),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
+                              results =
+                                  res.docs
+                                      .where((d) => d.id != currentUser!.uid)
+                                      .map(
+                                        (d) => {
+                                          'username': d['username'] ?? '',
+                                          'profilePic': d['profilePic'] ?? '',
+                                          'ref': d.reference,
+                                          'uid': d.id,
+                                          'friendRequests': List<String>.from(
+                                            d['friendRequests'] ?? [],
+                                          ),
+                                        },
+                                      )
+                                      .toList();
+                              print(
+                                '✅ Found ${results.length} friends: ${results.map((u) => u['username']).toList()}',
+                              );
+                              setStateSB(() {});
+                            } catch (e) {
+                              print('❌ Error searching friends: $e');
+                              setStateSB(() => results = []);
+                            }
+                          },
+                          decoration: const InputDecoration(
+                            hintText: "Enter friend’s username",
+                            hintStyle: TextStyle(color: Colors.white70),
+                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: Color.fromRGBO(33, 33, 33, 1),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 14.0,
+                            ),
+                          ),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (results.isNotEmpty)
+                          ...results.map((user) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8.0,
+                                horizontal: 12.0,
+                              ),
+                              child: Row(
+                                children: [
+                                  // Profile picture
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 16.0),
+                                    child: CircleAvatar(
+                                      backgroundImage:
+                                          user['profilePic'] != ''
+                                              ? NetworkImage(user['profilePic'])
+                                              : const AssetImage(
+                                                    'assets/img/default_profile.png',
+                                                  )
+                                                  as ImageProvider,
+                                      radius: 22,
+                                    ),
+                                  ),
+                                  // Username
+                                  Expanded(
+                                    child: Text(
+                                      user['username'],
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                      ),
+                                      softWrap: false, // Prevent wrapping
+                                    ),
+                                  ),
+                                  // Unfriend button
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 16.0),
+                                    child: IconButton(
+                                      icon: const Icon(
+                                        Icons.remove_circle,
+                                        color: Colors.redAccent,
+                                      ),
+                                      onPressed: () {
+                                        Navigator.pop(context); // Close dialog
+                                        showDialog(
+                                          context: context,
+                                          builder:
+                                              (_) => AlertDialog(
+                                                backgroundColor:
+                                                    Colors.grey[900],
+                                                title: const Text(
+                                                  "Unfriend",
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                                content: Text(
+                                                  "Remove ${user['username']} from friends?",
+                                                  style: const TextStyle(
+                                                    color: Colors.white70,
+                                                  ),
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed:
+                                                        () => Navigator.pop(
+                                                          context,
+                                                        ),
+                                                    child: const Text(
+                                                      "Cancel",
+                                                      style: TextStyle(
+                                                        color: Colors.grey,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed: () async {
+                                                      Navigator.pop(context);
+                                                      await _unfriend(
+                                                        user['username'],
+                                                      );
+                                                    },
+                                                    child: const Text(
+                                                      "Unfriend",
+                                                      style: TextStyle(
+                                                        color: Colors.redAccent,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        if (results.isEmpty && query.isNotEmpty)
+                          const Text(
+                            'No friends found',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 16,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  if (results.isNotEmpty)
-                    ...results.map((user) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 8.0,
-                          horizontal: 12.0,
-                        ),
-                        child: Row(
-                          children: [
-                            // Profile picture
-                            Padding(
-                              padding: const EdgeInsets.only(right: 16.0),
-                              child: CircleAvatar(
-                                backgroundImage: user['profilePic'] != ''
-                                    ? NetworkImage(user['profilePic'])
-                                    : const AssetImage(
-                                        'assets/img/default_profile.png',
-                                      ) as ImageProvider,
-                                radius: 22,
-                              ),
-                            ),
-                            // Username
-                            Expanded(
-                              child: Text(
-                                user['username'],
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                ),
-                                softWrap: false, // Prevent wrapping
-                              ),
-                            ),
-                            // Unfriend button
-                            Padding(
-                              padding: const EdgeInsets.only(left: 16.0),
-                              child: IconButton(
-                                icon: const Icon(Icons.remove_circle, color: Colors.redAccent),
-                                onPressed: () {
-                                  Navigator.pop(context); // Close dialog
-                                  showDialog(
-                                    context: context,
-                                    builder: (_) => AlertDialog(
-                                      backgroundColor: Colors.grey[900],
-                                      title: const Text(
-                                        "Unfriend",
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                      content: Text(
-                                        "Remove ${user['username']} from friends?",
-                                        style: const TextStyle(color: Colors.white70),
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(context),
-                                          child: const Text(
-                                            "Cancel",
-                                            style: TextStyle(color: Colors.grey),
-                                          ),
-                                        ),
-                                        TextButton(
-                                          onPressed: () async {
-                                            Navigator.pop(context);
-                                            await _unfriend(user['username']);
-                                          },
-                                          child: const Text(
-                                            "Unfriend",
-                                            style: TextStyle(color: Colors.redAccent),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  if (results.isEmpty && query.isNotEmpty)
-                    const Text(
-                      'No friends found',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                      ),
-                    ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ),
-      );
-    });
-}
+        );
+      },
+    );
+  }
 
   void showFullScreenImageDialog(BuildContext context, String imageUrl) {
     showDialog(
@@ -1097,7 +1136,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onPressed: () async {
                               await FirebaseAuth.instance.signOut();
                               if (!mounted) return;
-                              Navigator.pushReplacementNamed(context, '/login');
+                              Navigator.pushNamedAndRemoveUntil(
+                                context,
+                                '/login',
+                                (route) => false,
+                              );
                             },
                             child: const Text(
                               "Logout",
@@ -1403,142 +1446,161 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildFriendsList() {
-  String _searchQuery = ''; // Local state for search query
+    String _searchQuery = ''; // Local state for search query
 
-  return StatefulBuilder(
-    builder: (context, setStateSB) {
-      // Filter friendsList based on search query
-      final filteredFriends = _searchQuery.isEmpty
-          ? friendsList
-          : friendsList
-              .where((f) => f['username']
-                  .toString()
-                  .toLowerCase()
-                  .contains(_searchQuery.toLowerCase()))
-              .toList();
+    return StatefulBuilder(
+      builder: (context, setStateSB) {
+        // Filter friendsList based on search query
+        final filteredFriends =
+            _searchQuery.isEmpty
+                ? friendsList
+                : friendsList
+                    .where(
+                      (f) => f['username'].toString().toLowerCase().contains(
+                        _searchQuery.toLowerCase(),
+                      ),
+                    )
+                    .toList();
 
-      return Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: TextField(
-              onChanged: (val) {
-                setStateSB(() {
-                  _searchQuery = val.trim();
-                  print('🔍 Filtering friends with query: $_searchQuery');
-                });
-              },
-              decoration: const InputDecoration(
-                hintText: "Search friends",
-                hintStyle: TextStyle(color: Colors.white70),
-                border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Color.fromRGBO(33, 33, 33, 1),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 14.0,
-                ),
-                suffixIcon: Icon(Icons.search, color: Colors.white70),
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
               ),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-              ),
-            ),
-          ),
-          if (filteredFriends.isEmpty)
-            const Expanded(
-              child: Center(
-                child: Text(
-                  'No friends found.',
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
-                ),
-              ),
-            )
-          else
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                itemCount: filteredFriends.length,
-                itemBuilder: (context, index) {
-                  final f = filteredFriends[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Row(
-                      children: [
-                        // Profile picture
-                        Padding(
-                          padding: const EdgeInsets.only(right: 16.0),
-                          child: CircleAvatar(
-                            backgroundImage: f['profilePic'] != ''
-                                ? NetworkImage(f['profilePic'])
-                                : const AssetImage('assets/img/default_profile.png')
-                                    as ImageProvider,
-                            radius: 22,
-                          ),
-                        ),
-                        // Username
-                        Expanded(
-                          child: Text(
-                            f['username'],
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                            ),
-                            softWrap: false, // Prevent wrapping
-                          ),
-                        ),
-                        // Unfriend button
-                        Padding(
-                          padding: const EdgeInsets.only(left: 16.0),
-                          child: IconButton(
-                            icon: const Icon(Icons.remove_circle, color: Colors.redAccent),
-                            onPressed: () {
-                              showDialog(
-                                context: context,
-                                builder: (_) => AlertDialog(
-                                  backgroundColor: Colors.grey[900],
-                                  title: const Text(
-                                    "Unfriend",
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                  content: Text(
-                                    "Remove ${f['username']} from friends?",
-                                    style: const TextStyle(color: Colors.white70),
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: const Text(
-                                        "Cancel",
-                                        style: TextStyle(color: Colors.grey),
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: () async {
-                                        Navigator.pop(context);
-                                        await _unfriend(f['username']);
-                                      },
-                                      child: const Text(
-                                        "Unfriend",
-                                        style: TextStyle(color: Colors.redAccent),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
+              child: TextField(
+                onChanged: (val) {
+                  setStateSB(() {
+                    _searchQuery = val.trim();
+                    print('🔍 Filtering friends with query: $_searchQuery');
+                  });
                 },
+                decoration: const InputDecoration(
+                  hintText: "Search friends",
+                  hintStyle: TextStyle(color: Colors.white70),
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Color.fromRGBO(33, 33, 33, 1),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 14.0,
+                  ),
+                  suffixIcon: Icon(Icons.search, color: Colors.white70),
+                ),
+                style: const TextStyle(color: Colors.white, fontSize: 16),
               ),
             ),
-        ],
-      );
-    },
-  );
-}
+            if (filteredFriends.isEmpty)
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'No friends found.',
+                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
+                  ),
+                  itemCount: filteredFriends.length,
+                  itemBuilder: (context, index) {
+                    final f = filteredFriends[index];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Row(
+                        children: [
+                          // Profile picture
+                          Padding(
+                            padding: const EdgeInsets.only(right: 16.0),
+                            child: CircleAvatar(
+                              backgroundImage:
+                                  f['profilePic'] != ''
+                                      ? NetworkImage(f['profilePic'])
+                                      : const AssetImage(
+                                            'assets/img/default_profile.png',
+                                          )
+                                          as ImageProvider,
+                              radius: 22,
+                            ),
+                          ),
+                          // Username
+                          Expanded(
+                            child: Text(
+                              f['username'],
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                              ),
+                              softWrap: false, // Prevent wrapping
+                            ),
+                          ),
+                          // Unfriend button
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16.0),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.remove_circle,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder:
+                                      (_) => AlertDialog(
+                                        backgroundColor: Colors.grey[900],
+                                        title: const Text(
+                                          "Unfriend",
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                        content: Text(
+                                          "Remove ${f['username']} from friends?",
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                          ),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed:
+                                                () => Navigator.pop(context),
+                                            child: const Text(
+                                              "Cancel",
+                                              style: TextStyle(
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: () async {
+                                              Navigator.pop(context);
+                                              await _unfriend(f['username']);
+                                            },
+                                            child: const Text(
+                                              "Unfriend",
+                                              style: TextStyle(
+                                                color: Colors.redAccent,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
 }

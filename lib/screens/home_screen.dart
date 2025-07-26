@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:memelusion/screens/chat_screen.dart';
+import 'package:memelusion/screens/utils.dart' as utils;
 import 'package:memelusion/services/meme_service.dart';
 
 class HomePage extends StatefulWidget {
@@ -471,7 +472,9 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return WillPopScope(
+    onWillPop: () async => await utils.showExitConfirmationDialog(context),
+    child : Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
@@ -613,6 +616,7 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
+    ),
     );
   }
 }

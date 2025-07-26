@@ -133,8 +133,9 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Scaffold(
+    return WillPopScope(
+      onWillPop: () async => true, // Exit app on back button
+      child: Scaffold(
         body: Stack(
           fit: StackFit.expand,
           children: [
@@ -214,7 +215,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 20),
                       ElevatedButton(
-                        onPressed: _isLoggingIn ? null : _validateFields, // Disable when logging in
+                        onPressed: _isLoggingIn ? null : _validateFields,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.greenAccent,
                           shape: RoundedRectangleBorder(
@@ -225,19 +226,23 @@ class _LoginPageState extends State<LoginPage> {
                             vertical: 15,
                           ),
                         ),
-                        child: _isLoggingIn
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  color: Colors.black,
-                                  strokeWidth: 2,
+                        child:
+                            _isLoggingIn
+                                ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.black,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : const Text(
+                                  "Login",
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 16,
+                                  ),
                                 ),
-                              )
-                            : const Text(
-                                "Login",
-                                style: TextStyle(color: Colors.black, fontSize: 16),
-                              ),
                       ),
                     ],
                   ),
