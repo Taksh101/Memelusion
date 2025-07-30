@@ -1,3 +1,4 @@
+import 'package:animated_splash_screen/animated_splash_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -199,9 +200,17 @@ class SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return AnimatedSplashScreen(
+      splash: Center(
+        child: Transform.scale(
+          scale: 2, // Increase or decrease this value as needed
+          child: Image.asset('assets/img/logo.png', fit: BoxFit.contain),
+        ),
+      ),
+      nextScreen: SignupPage(),
+      splashTransition: SplashTransition.fadeTransition,
+      duration: 3000,
       backgroundColor: Colors.black,
-      body: Center(child: CircularProgressIndicator(color: Colors.greenAccent)),
     );
   }
 }
