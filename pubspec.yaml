@@ -18,6 +18,7 @@ dependencies:
 
   # ✅ Firebase Authentication
   firebase_auth: ^4.17.4
+  animated_splash_screen: any
 
   # ✅ Firestore for Database
   cloud_firestore: ^4.15.4
