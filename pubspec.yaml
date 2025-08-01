@@ -32,7 +32,11 @@ dependencies:
   firebase_storage: ^11.7.1
   uuid: ^4.3.3
   intl: ^0.20.2
+  scrollable_positioned_list: ^0.3.8
   connectivity_plus: ^6.0.5
+  video_player: ^2.10.0
+  google_fonts: any
+  fl_chart: any
 
 
 dev_dependencies:
@@ -46,5 +50,8 @@ flutter:
   # Uncomment and add asset paths if you use local images/fonts
   assets:
     - assets/img/background.jpg
+    - assets/img/logo.jpg
+    - assets/img/logo.png
     - assets/img/default_profile.png
+    - assets/splashscreen.mp4
   #   - assets/memes/

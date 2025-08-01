@@ -1,4 +1,3 @@
-import 'package:animated_splash_screen/animated_splash_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -13,6 +12,7 @@ import 'package:memelusion/screens/profile_screen.dart';
 import 'package:memelusion/screens/chat_screen.dart';
 import 'package:memelusion/screens/settings_screen.dart';
 import 'package:memelusion/screens/offline_screen.dart';
+import 'package:video_player/video_player.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -48,9 +48,10 @@ class MyApp extends StatelessWidget {
         ),
         iconTheme: const IconThemeData(color: Colors.white70),
       ),
-      initialRoute: '/',
+      initialRoute: '/splash',
       routes: {
-        '/': (context) => const AuthWrapper(),
+        '/splash': (context) => const SplashScreen(),
+        '/auth': (context) => const AuthWrapper(),
         '/signup': (context) => SignupPage(),
         '/login': (context) => LoginPage(),
         '/home': (context) => HomePage(),
@@ -64,6 +65,87 @@ class MyApp extends StatelessWidget {
   }
 }
 
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  late VideoPlayerController _controller;
+  bool _hasError = false;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    print('🎥 Initializing SplashScreen video');
+    _controller = VideoPlayerController.asset('assets/splashscreen.mp4')
+      ..initialize().then((_) {
+        if (mounted) {
+          print('✅ Video initialized successfully');
+          setState(() {
+            _isInitialized = true;
+          });
+          _controller.setLooping(false); // Play once
+          _controller.play().then((_) {
+            print('▶️ Video playback started');
+          }).catchError((error) {
+            print('❌ Error playing video: $error');
+            setState(() {
+              _hasError = true;
+            });
+          });
+        }
+      }).catchError((error) {
+        print('❌ Error initializing video: $error');
+        if (mounted) {
+          setState(() {
+            _hasError = true;
+          });
+        }
+      });
+
+    // Navigate to auth after 6 seconds
+    Future.delayed(const Duration(milliseconds: 6000), () {
+      if (mounted) {
+        print('🚀 Navigating to /auth after 6 seconds');
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/auth',
+          (route) => false,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    print('🖼️ Building SplashScreen, initialized: $_isInitialized, hasError: $_hasError');
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: _hasError
+            ? const Text(
+                'Failed to load splash video',
+                style: TextStyle(color: Colors.white70, fontSize: 18),
+              )
+            : _isInitialized
+                ? VideoPlayer(_controller)
+                : const CircularProgressIndicator(color: Colors.greenAccent),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    print('🗑️ Disposing VideoPlayerController');
+    _controller.dispose();
+    super.dispose();
+  }
+}
+
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
@@ -73,6 +155,7 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _isOnline = true;
+  bool _hasNavigated = false;
 
   @override
   void initState() {
@@ -97,29 +180,42 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
   }
 
+  void _navigateTo(String route) {
+    if (!_hasNavigated && mounted) {
+      print('🚀 Navigating to $route');
+      setState(() {
+        _hasNavigated = true;
+      });
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        route,
+        (route) => false,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    print('🛠️ Building AuthWrapper');
     if (!_isOnline) {
+      print('📴 Showing OfflineScreen');
       return OfflineScreen(onRetry: _checkConnectivity);
     }
 
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
+        print('🔥 Auth state: ${snapshot.connectionState}');
         if (snapshot.connectionState == ConnectionState.waiting) {
           print('⏳ Waiting for auth state');
-          return const SplashScreen();
+          return const Center(child: CircularProgressIndicator(color: Colors.greenAccent));
         }
         if (!snapshot.hasData || snapshot.data == null) {
           print('🔓 No user logged in, routing to /login');
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/login',
-              (route) => false,
-            );
+            _navigateTo('/login');
           });
-          return const SplashScreen();
+          return const Center(child: CircularProgressIndicator(color: Colors.greenAccent));
         }
         // User is signed in; check admin status
         return FutureBuilder<DocumentSnapshot>(
@@ -128,42 +224,27 @@ class _AuthWrapperState extends State<AuthWrapper> {
               .doc(snapshot.data!.uid)
               .get(const GetOptions(source: Source.serverAndCache)),
           builder: (context, docSnapshot) {
+            print('📄 Firestore snapshot: ${docSnapshot.connectionState}');
             if (docSnapshot.connectionState == ConnectionState.waiting) {
-              print(
-                '⏳ Waiting for Firestore user data for UID: ${snapshot.data!.uid}',
-              );
-              return const SplashScreen();
+              print('⏳ Waiting for Firestore user data for UID: ${snapshot.data!.uid}');
+              return const Center(child: CircularProgressIndicator(color: Colors.greenAccent));
             }
-            if (!docSnapshot.hasData ||
-                docSnapshot.data == null ||
-                !docSnapshot.data!.exists) {
-              print(
-                '❌ No user data found for UID: ${snapshot.data!.uid}, signing out',
-              );
+            if (!docSnapshot.hasData || docSnapshot.data == null || !docSnapshot.data!.exists) {
+              print('❌ No user data found for UID: ${snapshot.data!.uid}, signing out');
               FirebaseAuth.instance.signOut();
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (route) => false,
-                );
+                _navigateTo('/login');
               });
-              return const SplashScreen();
+              return const Center(child: CircularProgressIndicator(color: Colors.greenAccent));
             }
             final userData = docSnapshot.data!.data() as Map<String, dynamic>?;
             if (userData == null) {
-              print(
-                '❌ User data is null for UID: ${snapshot.data!.uid}, signing out',
-              );
+              print('❌ User data is null for UID: ${snapshot.data!.uid}, signing out');
               FirebaseAuth.instance.signOut();
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (route) => false,
-                );
+                _navigateTo('/login');
               });
-              return const SplashScreen();
+              return const Center(child: CircularProgressIndicator(color: Colors.greenAccent));
             }
             final isAdmin = userData['isAdmin'] ?? false;
             print('🔐 User ${snapshot.data!.uid} isAdmin: $isAdmin');
@@ -171,46 +252,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
               print('🚨 Admin detected, signing out to require re-login');
               FirebaseAuth.instance.signOut();
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (route) => false,
-                );
+                _navigateTo('/login');
               });
-              return const SplashScreen();
+              return const Center(child: CircularProgressIndicator(color: Colors.greenAccent));
             }
             // Non-admin user, route to /home
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/home',
-                (route) => false,
-              );
+              _navigateTo('/home');
             });
-            return const SplashScreen();
+            return const Center(child: CircularProgressIndicator(color: Colors.greenAccent));
           },
         );
       },
-    );
-  }
-}
-
-class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedSplashScreen(
-      splash: Center(
-        child: Transform.scale(
-          scale: 2, // Increase or decrease this value as needed
-          child: Image.asset('assets/img/logo.png', fit: BoxFit.contain),
-        ),
-      ),
-      nextScreen: SignupPage(),
-      splashTransition: SplashTransition.fadeTransition,
-      duration: 3000,
-      backgroundColor: Colors.black,
     );
   }
 }
