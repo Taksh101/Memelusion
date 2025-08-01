@@ -1,18 +1,127 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:fl_chart/fl_chart.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings', style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.black,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      backgroundColor: Colors.black,
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildSettingTile(
+            context,
+            icon: Icons.bar_chart_rounded,
+            title: 'Meme Stats',
+            subtitle: 'View your meme stats',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MemeStatsScreen()),
+            ),
+          ),
+          _buildSettingTile(
+            context,
+            icon: Icons.info_outline,
+            title: 'App Info',
+            subtitle: 'Version, license, developer info',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AppInfoScreen()),
+            ),
+          ),
+          _buildSettingTile(
+            context,
+            icon: Icons.help_outline,
+            title: 'Help & Support',
+            subtitle: 'FAQs and Support Information',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const HelpScreen()),
+            ),
+          ),
+          _buildSettingTile(
+            context,
+            icon: Icons.logout,
+            title: 'Logout',
+            subtitle: 'Sign out from your account',
+            onTap: () => _showLogoutDialog(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingTile(BuildContext context,
+      {required IconData icon,
+      required String title,
+      required String subtitle,
+      required VoidCallback onTap}) {
+    return Card(
+      color: Colors.grey[900],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 4,
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: Colors.greenAccent.withOpacity(0.2),
+          child: Icon(icon, color: Colors.greenAccent),
+        ),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle, style: const TextStyle(color: Colors.white70)),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.white54),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text("Confirm Logout", style: TextStyle(color: Colors.white)),
+        content: const Text("Are you sure you want to logout?", style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            child: const Text("Cancel", style: TextStyle(color: Colors.greenAccent)),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          TextButton(
+            child: const Text("Logout", style: TextStyle(color: Colors.redAccent)),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            },
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class MemeStatsScreen extends StatefulWidget {
+  const MemeStatsScreen({super.key});
+
+  @override
+  State<MemeStatsScreen> createState() => _MemeStatsScreenState();
+}
+
+class _MemeStatsScreenState extends State<MemeStatsScreen> {
   final currentUser = FirebaseAuth.instance.currentUser;
   Map<String, dynamic>? userData;
+  int touchedIndex = -1;
 
   @override
   void initState() {
@@ -21,397 +130,162 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadUserData() async {
-    if (currentUser == null) {
-      print('❌ No current user logged in');
-      return;
-    }
+    if (currentUser == null) return;
     try {
-      final doc =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(currentUser!.uid)
-              .get();
+      final doc = await FirebaseFirestore.instance.collection('users').doc(currentUser!.uid).get();
       if (doc.exists && mounted) {
-        setState(() {
-          userData = doc.data();
-          print('✅ Loaded user data: ${userData?['username']}');
-        });
+        setState(() => userData = doc.data());
       }
     } catch (e) {
-      print('❌ Error loading user data: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to load user data: $e')));
-      }
-    }
-  }
-
-  void _showAccountDetails() {
-    final creationTime = currentUser?.metadata.creationTime;
-    final formattedDate =
-        creationTime != null
-            ? DateFormat('MMMM d, yyyy').format(creationTime)
-            : 'Unknown';
-    final savedMemes = (userData?['savedMemes'] as List<dynamic>?)?.length ?? 0;
-    final sharedMemes = userData?['sharedMemesCount'] as int? ?? 0;
-    final likedMemes = userData?['likedMemesCount'] as int? ?? 0;
-
-    showDialog(
-      context: context,
-      builder:
-          (_) => AlertDialog(
-            backgroundColor: Colors.grey[850],
-            contentPadding: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Your Meme Stats',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Using Since: $formattedDate',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 18,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-                Text(
-                  'Memes Saved: $savedMemes',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 18,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-                Text(
-                  'Memes Shared: $sharedMemes',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 18,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-                Text(
-                  'Memes Liked: $likedMemes',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 18,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'Close',
-                  style: TextStyle(
-                    color: Colors.greenAccent[400],
-                    fontSize: 16,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-              ),
-            ],
-          ),
-    );
-  }
-
-  void _showAppInfo() {
-    const version = '1.0.0'; // Update when releasing new versions
-    showDialog(
-      context: context,
-      builder:
-          (_) => AlertDialog(
-            backgroundColor: Colors.grey[850],
-            contentPadding: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            content: const Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'App Info',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'Memelusion v1.0.0',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 18,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-                Text(
-                  'Created by Taksh, Maharshi, Brinda, Hetshi',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 18,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'Close',
-                  style: TextStyle(
-                    color: Colors.greenAccent[400],
-                    fontSize: 16,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-              ),
-            ],
-          ),
-    );
-  }
-
-  void _showHelpSection() {
-    showDialog(
-      context: context,
-      builder:
-          (_) => AlertDialog(
-            backgroundColor: Colors.grey[850],
-            contentPadding: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            content: const SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Help',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Inter',
-                    ),
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    '• Swipe left to get a new meme.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 18,
-                      fontFamily: 'Inter',
-                    ),
-                  ),
-                  Text(
-                    '• Swipe right to like a meme.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 18,
-                      fontFamily: 'Inter',
-                    ),
-                  ),
-                  Text(
-                    '• Swipe up to share a meme.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 18,
-                      fontFamily: 'Inter',
-                    ),
-                  ),
-                  Text(
-                    '• Tap your profile to edit your username or pic.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 18,
-                      fontFamily: 'Inter',
-                    ),
-                  ),
-                  Text(
-                    '• Check notifications for new friend requests.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 18,
-                      fontFamily: 'Inter',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'Close',
-                  style: TextStyle(
-                    color: Colors.greenAccent[400],
-                    fontSize: 16,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-              ),
-            ],
-          ),
-    );
-  }
-
-  Future<void> _logout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder:
-          (_) => AlertDialog(
-            backgroundColor: Colors.grey[850],
-            contentPadding: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            content: const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Logout',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'Are you sure you want to logut?',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 18,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: Text(
-                  'Logout',
-                  style: TextStyle(
-                    color: Colors.redAccent[400],
-                    fontSize: 16,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-              ),
-            ],
-          ),
-    );
-
-    if (confirm != true) return;
-
-    try {
-      await FirebaseAuth.instance.signOut();
-      if (mounted) {
-        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to log out: $e')));
-      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load data: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final savedMemes = (userData?['savedMemes'] as List?)?.length ?? 0;
+    final sharedMemes = userData?['sharedMemesCount'] ?? 0;
+    final likedMemes = userData?['likedMemesCount'] ?? 0;
+    final creationDate = currentUser?.metadata.creationTime;
+    final formattedDate = creationDate != null ? DateFormat('MMMM d, yyyy').format(creationDate) : 'Unknown';
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        elevation: 0,
-        title: const Text(
-          'Settings',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'Inter',
-          ),
-        ),
-        centerTitle: true,
+        title: const Text('Meme Stats', style: TextStyle(color: Colors.white)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Settings List
-            ListView(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _buildSettingsCard(
-                  icon: Icons.person,
-                  title: 'Meme Stats',
-                  onTap: _showAccountDetails,
-                  splashColor: Colors.greenAccent[400]!.withOpacity(0.4),
+            Text(
+              'Your Meme Stats',
+              style: GoogleFonts.roboto(
+                textStyle: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 12),
-                _buildSettingsCard(
-                  icon: Icons.info,
-                  title: 'App Info',
-                  onTap: _showAppInfo,
-                  splashColor: Colors.greenAccent[400]!.withOpacity(0.4),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[900],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  infoRow('Using Since', formattedDate),
+                  infoRow('Memes Saved', '$savedMemes'),
+                  infoRow('Memes Shared', '$sharedMemes'),
+                  infoRow('Memes Liked', '$likedMemes'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'Visual Overview',
+              style: GoogleFonts.roboto(
+                textStyle: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(height: 12),
-                _buildSettingsCard(
-                  icon: Icons.help,
-                  title: 'Help',
-                  onTap: _showHelpSection,
-                  splashColor: Colors.greenAccent[400]!.withOpacity(0.4),
-                ),
-                const SizedBox(height: 12),
-                _buildSettingsCard(
-                  icon: Icons.logout,
-                  title: 'Logout',
-                  color: Colors.redAccent[400]!,
-                  onTap: _logout,
-                  splashColor: Colors.redAccent[400]!.withOpacity(0.4),
-                ),
-              ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[850],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              height: 250,
+              child: savedMemes + sharedMemes + likedMemes == 0
+                  ? const Center(
+                      child: Text(
+                        'Not enough data, Please like, share or save some memes to get visual overview.',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : PieChart(
+                      PieChartData(
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 0,
+                        borderData: FlBorderData(
+                          show: true,
+                          border: Border.all(
+                            color: Colors.grey[400]!,
+                            width: 1,
+                          ),
+                        ),
+                        sections: [
+                          PieChartSectionData(
+                            value: savedMemes.toDouble(),
+                            color: Colors.greenAccent,
+                            title: touchedIndex == 0 ? '$savedMemes' : 'Saved',
+                            radius: 80,
+                            titlePositionPercentageOffset: 0.6,
+                            titleStyle: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          PieChartSectionData(
+                            value: sharedMemes.toDouble(),
+                            color: Colors.blueAccent,
+                            title: touchedIndex == 1 ? '$sharedMemes' : 'Shared',
+                            radius: 80,
+                            titlePositionPercentageOffset: 0.5,
+                            titleStyle: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          PieChartSectionData(
+                            value: likedMemes.toDouble(),
+                            color: Colors.orangeAccent,
+                            title: touchedIndex == 2 ? '$likedMemes' : 'Liked',
+                            radius: 80,
+                            titlePositionPercentageOffset: 0.6,
+                            titleStyle: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                        pieTouchData: PieTouchData(
+                          touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                            setState(() {
+                              if (!event.isInterestedForInteractions ||
+                                  pieTouchResponse == null ||
+                                  pieTouchResponse.touchedSection == null) {
+                                touchedIndex = -1;
+                                return;
+                              }
+                              touchedIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -419,66 +293,172 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSettingsCard({
-    required IconData icon,
-    required String title,
-    Color color = Colors.greenAccent,
-    required VoidCallback onTap,
-    required Color splashColor,
-  }) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeInOut,
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          splashColor: splashColor,
-          highlightColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.grey[900]!, Colors.black87],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-                BoxShadow(
-                  color: Colors.white.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Icon(icon, color: color, size: 28),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'Inter',
+  Widget infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 16)),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+}
+
+class AppInfoScreen extends StatelessWidget {
+  const AppInfoScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: const Text('About Memelusion'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: ListView(
+          children: [
+            Center(
+              child: Column(
+                children: [
+                  Container(
+                    height: 100,
+                    width: 100,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black,
+                      border: Border.all(color: Colors.greenAccent, width: 2.5),
+                      image: const DecorationImage(
+                        image: AssetImage('assets/img/logo.jpg'),
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
-                ),
-                Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
-              ],
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Memelusion',
+                    style: TextStyle(
+                      fontSize: 30,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Version: 1.0.0',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+            const SizedBox(height: 30),
+            buildCard(
+              title: 'App Description',
+              content:
+                  'Memelusion is a platform for sharing, chatting, and enjoying memes in real time. '
+                  'Admins can upload fresh content, while users can share memes privately with friends. '
+                  'All memes and chats disappear after 24 hours, ensuring a fun and clutter-free experience!',
+            ),
+            buildCard(
+              title: 'Developed By',
+              content: 'Taksh (23020201018)\nHetshi (23020201042)\nBrinda (23020201055)\nMaharshi (23020201148)',
+            ),
+            buildCard(
+              title: 'Institution',
+              content: 'Darshan University',
+            ),
+            buildCard(
+              title: 'Guided By',
+              content: 'Vishal Makavana Sir',
+            ),
+            const SizedBox(height: 30),
+            Center(
+              child: Text(
+                '© 2025 Memelusion. All rights reserved.',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget buildCard({required String title, required String content}) {
+    return Card(
+      color: Colors.grey.shade900,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              content,
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.white70,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class HelpScreen extends StatelessWidget {
+  const HelpScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Help & Support'),
+        backgroundColor: Colors.black,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: const [
+          ListTile(
+            leading: Icon(Icons.question_answer_outlined),
+            title: Text('How do I share memes?'),
+            subtitle: Text('Go to Home → Swipe up → Select Friend'),
+          ),
+          ListTile(
+            leading: Icon(Icons.chat_outlined),
+            title: Text('How to chat with a friend?'),
+            subtitle: Text('Open Friend List → Tap on friend → Start chatting'),
+          ),
+          ListTile(
+            leading: Icon(Icons.favorite_border),
+            title: Text('How do I like a meme?'),
+            subtitle: Text('Swipe right on a meme to like it'),
+          ),
+          ListTile(
+            leading: Icon(Icons.timer_outlined),
+            title: Text('Why do memes disappear after 24 hours?'),
+            subtitle: Text('Memes and chats vanish after 24 hours to keep your feed fresh and engaging.'),
+          ),
+        ],
       ),
     );
   }
