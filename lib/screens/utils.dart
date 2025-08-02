@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'package:flutter/services.dart'; 
 Future<bool> showExitConfirmationDialog(BuildContext context) async {
   return await showDialog<bool>(
         context: context,
@@ -45,7 +45,7 @@ Future<bool> showExitConfirmationDialog(BuildContext context) async {
               ),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => SystemNavigator.pop(),
               child: const Text(
                 'Exit',
                 style: TextStyle(

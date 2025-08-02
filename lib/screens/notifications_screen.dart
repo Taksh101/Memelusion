@@ -114,8 +114,39 @@ class _NotificationsPageState extends State<NotificationsPage> {
           (n) => n['type'] == 'friend_request' && n['from'] == fromUser,
         ),
       ]),
-    });
+  });
     _fetchNotes();
+  }
+
+  /* ── Clear All Notifications (except friend requests) ──────────── */
+  Future<void> _clearAllNotifications() async {
+    // Keep only friend request notifications
+    final friendRequestNotes =
+        _notes.where((n) => n['type'] == 'friend_request').toList();
+
+    try {
+      await _users.doc(uid).update({
+        'notifications': friendRequestNotes,
+      });
+      await _fetchNotes(); // Refresh UI
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'All dismissable notifications cleared',
+            style: TextStyle(fontFamily: 'Inter'),
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to clear notifications: $e',
+            style: const TextStyle(fontFamily: 'Inter'),
+          ),
+        ),
+      );
+    }
   }
 
   /* ── UI ───────────────────────────────────────────────────────── */
@@ -125,85 +156,164 @@ class _NotificationsPageState extends State<NotificationsPage> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        title: const Text('Notifications'),
+        title: const Text(
+          'Notifications',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Inter',
+          ),
+        ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-      ),
-      body:
-          _loading
-              ? const Center(
-                child: CircularProgressIndicator(color: Colors.greenAccent),
-              )
-              : _notes.isEmpty
-              ? const Center(
-                child: Text(
-                  'No notifications yet.',
-                  style: TextStyle(color: Colors.white70),
-                ),
-              )
-              : ListView.builder(
-                padding: const EdgeInsets.all(8),
-                itemCount: _notes.length,
-                itemBuilder: (_, i) {
-                  final n = _notes[i];
-                  return Dismissible(
-                    key: ValueKey(n.hashCode),
-                    background: Container(
-                      color: Colors.red,
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 20),
-                      child: const Icon(Icons.delete, color: Colors.white),
-                    ),
-                    direction:
-                        n['type'] == 'friend_request'
-                            ? DismissDirection.none
-                            : DismissDirection.endToStart,
-                    onDismissed:
-                        n['type'] == 'friend_request'
-                            ? null
-                            : (_) => _delete(n),
-                    child: Card(
-                      color: Colors.grey[900],
-                      child: FutureBuilder<DocumentSnapshot>(
-                        future: _users
-                            .where('username', isEqualTo: n['from'])
-                            .limit(1)
-                            .get()
-                            .then((s) => s.docs.first),
-                        builder: (context, snapshot) {
-                          String profilePic = '';
-                          if (snapshot.hasData && snapshot.data!.exists) {
-                            profilePic = snapshot.data!['profilePic'] ?? '';
-                          }
-                          return ListTile(
-                            leading: CircleAvatar(
-                              radius: 20,
-                              backgroundImage:
-                                  profilePic.isNotEmpty
-                                      ? NetworkImage(profilePic)
-                                      : const AssetImage(
-                                            'assets/img/default_profile.png',
-                                          )
-                                          as ImageProvider,
-                            ),
-                            title: Text(
-                              _title(n),
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                            subtitle: Text(
-                              _timeAgo(n['timestamp']),
-                              style: const TextStyle(color: Colors.white54),
-                            ),
-                            trailing: _trailing(n),
-                          );
-                        },
+        actions: [
+          if (_notes.any((n) => n['type'] != 'friend_request')) // Show only if dismissable notifications exist
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: ElevatedButton(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      backgroundColor: Colors.grey[900],
+                      title: const Text(
+                        'Clear All Notifications',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
+                      content: const Text(
+                        'Are you sure you want to clear all dismissable notifications? Friend requests will remain.',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontFamily: 'Inter',
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontFamily: 'Inter',
+                            ),
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: () async {
+                            Navigator.pop(context); // Close dialog
+                            await _clearAllNotifications();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.greenAccent[400],
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text(
+                            'Clear',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontFamily: 'Inter',
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.greenAccent[400],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text(
+                  'Clear All',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
+            ),
+        ],
+      ),
+      body: _loading
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.greenAccent),
+            )
+          : _notes.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No notifications yet.',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: _notes.length,
+                  itemBuilder: (_, i) {
+                    final n = _notes[i];
+                    return Dismissible(
+                      key: ValueKey(n.hashCode),
+                      background: Container(
+                        color: Colors.red,
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        child: const Icon(Icons.delete, color: Colors.white),
+                      ),
+                      direction: n['type'] == 'friend_request'
+                          ? DismissDirection.none
+                          : DismissDirection.endToStart,
+                      onDismissed: n['type'] == 'friend_request'
+                          ? null
+                          : (_) => _delete(n),
+                      child: Card(
+                        color: Colors.grey[900],
+                        child: FutureBuilder<DocumentSnapshot>(
+                          future: _users
+                              .where('username', isEqualTo: n['from'])
+                              .limit(1)
+                              .get()
+                              .then((s) => s.docs.first),
+                          builder: (context, snapshot) {
+                            String profilePic = '';
+                            if (snapshot.hasData && snapshot.data!.exists) {
+                              profilePic = snapshot.data!['profilePic'] ?? '';
+                            }
+                            return ListTile(
+                              leading: CircleAvatar(
+                                radius: 20,
+                                backgroundImage: profilePic.isNotEmpty
+                                    ? NetworkImage(profilePic)
+                                    : const AssetImage(
+                                        'assets/img/default_profile.png',
+                                      ) as ImageProvider,
+                              ),
+                              title: Text(
+                                _title(n),
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              subtitle: Text(
+                                _timeAgo(n['timestamp']),
+                                style: const TextStyle(color: Colors.white54),
+                              ),
+                              trailing: _trailing(n),
+                            );
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
     );
   }
 

@@ -456,7 +456,12 @@ class HelpScreen extends StatelessWidget {
           ListTile(
             leading: Icon(Icons.timer_outlined),
             title: Text('Why do memes disappear after 24 hours?'),
-            subtitle: Text('Memes and chats vanish after 24 hours to keep your feed fresh and engaging.'),
+            subtitle: Text('Memes and chats disappear after 24 hours to keep your experience fresh, fun, and clutter-free.'),
+          ),
+          ListTile(
+            leading: Icon(Icons.lock_outlined),
+            title: Text('How are my chats secured?'),
+            subtitle: Text('Your chats are protected with end-to-end encryption, ensuring only you and your friend can read them.'),
           ),
         ],
       ),

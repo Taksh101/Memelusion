@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -125,57 +126,87 @@ class _AdminPanelState extends State<AdminPanel> {
   }
 
   void showFullScreenImageDialog(BuildContext context, String imageUrl) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => Dialog(
-            backgroundColor: Colors.transparent,
-            insetPadding: EdgeInsets.all(10),
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Stack(
-                children: [
-                  Center(
-                    child: Hero(
-                      tag: imageUrl,
-                      child: InteractiveViewer(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            imageUrl,
-                            fit: BoxFit.contain,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return const Center(
-                                child: CircularProgressIndicator(),
-                              );
-                            },
-                            errorBuilder:
-                                (context, error, stackTrace) =>
-                                    const Center(child: Icon(Icons.error)),
+  showDialog(
+    context: context,
+    builder: (context) => GestureDetector(
+      onTap: () => Navigator.of(context).pop(), // Tap outside to close
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16), // Increased from 10
+        child: Stack(
+          children: [
+            // Blur background
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                child: Container(
+                  color: Colors.black.withOpacity(0.7), // Semi-transparent black
+                ),
+              ),
+            ),
+            Center(
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).pop(), // Tap image to close
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Hero(
+                    tag: imageUrl,
+                    child: InteractiveViewer(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          imageUrl,
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.greenAccent, // Match app's accent
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Center(
+                            child: Icon(
+                              Icons.error,
+                              color: Colors.redAccent, // Match app's accent
+                              size: 40,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.close,
-                        color: Colors.white,
-                        size: 30,
-                      ),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
-    );
-  }
+            Positioned(
+              top: 5,
+              right: 5,
+              child: IconButton(
+                icon: const Icon(
+                  Icons.close,
+                  color: Colors.redAccent, // Changed to redAccent
+                  size: 32, // Slightly larger
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
   Future<void> _deleteUser(String userId) async {
     final confirm = await showDialog<bool>(
