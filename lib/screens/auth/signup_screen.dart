@@ -130,10 +130,10 @@ class _SignupPageState extends State<SignupPage> {
       _usernameError = "Enter username";
       isValid = false;
     } else if (!RegExp(
-      r'^[a-zA-Z0-9_]{3,20}$',
+      r'^[a-zA-Z0-9]{3,20}$',
     ).hasMatch(_usernameController.text)) {
       _usernameError =
-          "Username should only contain letters, numbers, and underscores (3-20 characters)";
+          "Username should only contain letters and numbers (3-20 characters)";
       isValid = false;
     }
 

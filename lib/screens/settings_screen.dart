@@ -26,30 +26,33 @@ class SettingsScreen extends StatelessWidget {
             icon: Icons.bar_chart_rounded,
             title: 'Meme Stats',
             subtitle: 'View your meme stats',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const MemeStatsScreen()),
-            ),
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MemeStatsScreen()),
+                ),
           ),
           _buildSettingTile(
             context,
             icon: Icons.info_outline,
             title: 'App Info',
             subtitle: 'Version, license, developer info',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const AppInfoScreen()),
-            ),
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AppInfoScreen()),
+                ),
           ),
           _buildSettingTile(
             context,
             icon: Icons.help_outline,
             title: 'Help & Support',
             subtitle: 'FAQs and Support Information',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const HelpScreen()),
-            ),
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HelpScreen()),
+                ),
           ),
           _buildSettingTile(
             context,
@@ -63,11 +66,13 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSettingTile(BuildContext context,
-      {required IconData icon,
-      required String title,
-      required String subtitle,
-      required VoidCallback onTap}) {
+  Widget _buildSettingTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
     return Card(
       color: Colors.grey[900],
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -78,9 +83,19 @@ class SettingsScreen extends StatelessWidget {
           backgroundColor: Colors.greenAccent.withOpacity(0.2),
           child: Icon(icon, color: Colors.greenAccent),
         ),
-        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         subtitle: Text(subtitle, style: const TextStyle(color: Colors.white70)),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.white54),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: Colors.white54,
+        ),
         onTap: onTap,
       ),
     );
@@ -89,24 +104,41 @@ class SettingsScreen extends StatelessWidget {
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.grey[900],
-        title: const Text("Confirm Logout", style: TextStyle(color: Colors.white)),
-        content: const Text("Are you sure you want to logout?", style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            child: const Text("Cancel", style: TextStyle(color: Colors.greenAccent)),
-            onPressed: () => Navigator.of(context).pop(),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: const Text(
+              "Confirm Logout",
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Text(
+              "Are you sure you want to logout?",
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                child: const Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.greenAccent),
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              TextButton(
+                child: const Text(
+                  "Logout",
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+                onPressed: () async {
+                  await FirebaseAuth.instance.signOut();
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/login',
+                    (route) => false,
+                  );
+                },
+              ),
+            ],
           ),
-          TextButton(
-            child: const Text("Logout", style: TextStyle(color: Colors.redAccent)),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-          ),
-        ],
-      ),
     );
   }
 }
@@ -132,12 +164,18 @@ class _MemeStatsScreenState extends State<MemeStatsScreen> {
   Future<void> _loadUserData() async {
     if (currentUser == null) return;
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(currentUser!.uid).get();
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(currentUser!.uid)
+              .get();
       if (doc.exists && mounted) {
         setState(() => userData = doc.data());
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load data: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load data: $e')));
     }
   }
 
@@ -147,7 +185,10 @@ class _MemeStatsScreenState extends State<MemeStatsScreen> {
     final sharedMemes = userData?['sharedMemesCount'] ?? 0;
     final likedMemes = userData?['likedMemesCount'] ?? 0;
     final creationDate = currentUser?.metadata.creationTime;
-    final formattedDate = creationDate != null ? DateFormat('MMMM d, yyyy').format(creationDate) : 'Unknown';
+    final formattedDate =
+        creationDate != null
+            ? DateFormat('MMMM d, yyyy').format(creationDate)
+            : 'Unknown';
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -210,82 +251,92 @@ class _MemeStatsScreenState extends State<MemeStatsScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               height: 250,
-              child: savedMemes + sharedMemes + likedMemes == 0
-                  ? const Center(
-                      child: Text(
-                        'Not enough data, Please like, share or save some memes to get visual overview.',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
+              child:
+                  savedMemes + sharedMemes + likedMemes == 0
+                      ? const Center(
+                        child: Text(
+                          'Not enough data, Please like, share or save some memes to get visual overview.',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
+                      )
+                      : PieChart(
+                        PieChartData(
+                          sectionsSpace: 2,
+                          centerSpaceRadius: 0,
+                          borderData: FlBorderData(
+                            show: true,
+                            border: Border.all(
+                              color: Colors.grey[400]!,
+                              width: 1,
+                            ),
+                          ),
+                          sections: [
+                            PieChartSectionData(
+                              value: savedMemes.toDouble(),
+                              color: Colors.greenAccent,
+                              title:
+                                  touchedIndex == 0 ? '$savedMemes' : 'Saved',
+                              radius: 80,
+                              titlePositionPercentageOffset: 0.6,
+                              titleStyle: const TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            PieChartSectionData(
+                              value: sharedMemes.toDouble(),
+                              color: Colors.blueAccent,
+                              title:
+                                  touchedIndex == 1 ? '$sharedMemes' : 'Shared',
+                              radius: 80,
+                              titlePositionPercentageOffset: 0.5,
+                              titleStyle: const TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            PieChartSectionData(
+                              value: likedMemes.toDouble(),
+                              color: Colors.orangeAccent,
+                              title:
+                                  touchedIndex == 2 ? '$likedMemes' : 'Liked',
+                              radius: 80,
+                              titlePositionPercentageOffset: 0.6,
+                              titleStyle: const TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                          pieTouchData: PieTouchData(
+                            touchCallback: (
+                              FlTouchEvent event,
+                              pieTouchResponse,
+                            ) {
+                              setState(() {
+                                if (!event.isInterestedForInteractions ||
+                                    pieTouchResponse == null ||
+                                    pieTouchResponse.touchedSection == null) {
+                                  touchedIndex = -1;
+                                  return;
+                                }
+                                touchedIndex =
+                                    pieTouchResponse
+                                        .touchedSection!
+                                        .touchedSectionIndex;
+                              });
+                            },
+                          ),
+                        ),
                       ),
-                    )
-                  : PieChart(
-                      PieChartData(
-                        sectionsSpace: 2,
-                        centerSpaceRadius: 0,
-                        borderData: FlBorderData(
-                          show: true,
-                          border: Border.all(
-                            color: Colors.grey[400]!,
-                            width: 1,
-                          ),
-                        ),
-                        sections: [
-                          PieChartSectionData(
-                            value: savedMemes.toDouble(),
-                            color: Colors.greenAccent,
-                            title: touchedIndex == 0 ? '$savedMemes' : 'Saved',
-                            radius: 80,
-                            titlePositionPercentageOffset: 0.6,
-                            titleStyle: const TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                          PieChartSectionData(
-                            value: sharedMemes.toDouble(),
-                            color: Colors.blueAccent,
-                            title: touchedIndex == 1 ? '$sharedMemes' : 'Shared',
-                            radius: 80,
-                            titlePositionPercentageOffset: 0.5,
-                            titleStyle: const TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                          PieChartSectionData(
-                            value: likedMemes.toDouble(),
-                            color: Colors.orangeAccent,
-                            title: touchedIndex == 2 ? '$likedMemes' : 'Liked',
-                            radius: 80,
-                            titlePositionPercentageOffset: 0.6,
-                            titleStyle: const TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                        pieTouchData: PieTouchData(
-                          touchCallback: (FlTouchEvent event, pieTouchResponse) {
-                            setState(() {
-                              if (!event.isInterestedForInteractions ||
-                                  pieTouchResponse == null ||
-                                  pieTouchResponse.touchedSection == null) {
-                                touchedIndex = -1;
-                                return;
-                              }
-                              touchedIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
             ),
           ],
         ),
@@ -299,8 +350,18 @@ class _MemeStatsScreenState extends State<MemeStatsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 16)),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white70, fontSize: 16),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
@@ -350,10 +411,7 @@ class AppInfoScreen extends StatelessWidget {
                   const SizedBox(height: 6),
                   const Text(
                     'Version: 1.0.0',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                 ],
               ),
@@ -368,16 +426,11 @@ class AppInfoScreen extends StatelessWidget {
             ),
             buildCard(
               title: 'Developed By',
-              content: 'Taksh (23020201018)\nHetshi (23020201042)\nBrinda (23020201055)\nMaharshi (23020201148)',
+              content:
+                  'Taksh (23020201018)\nHetshi (23020201042)\nBrinda (23020201055)\nMaharshi (23020201148)',
             ),
-            buildCard(
-              title: 'Institution',
-              content: 'Darshan University',
-            ),
-            buildCard(
-              title: 'Guided By',
-              content: 'Vishal Makavana Sir',
-            ),
+            buildCard(title: 'Institution', content: 'Darshan University'),
+            buildCard(title: 'Guided By', content: 'Vishal Makavana Sir'),
             const SizedBox(height: 30),
             Center(
               child: Text(
@@ -456,12 +509,16 @@ class HelpScreen extends StatelessWidget {
           ListTile(
             leading: Icon(Icons.timer_outlined),
             title: Text('Why do memes disappear after 24 hours?'),
-            subtitle: Text('Memes and chats disappear after 24 hours to keep your experience fresh, fun, and clutter-free.'),
+            subtitle: Text(
+              'Memes and chats disappear after 24 hours to keep your experience fresh, fun, and clutter-free.',
+            ),
           ),
           ListTile(
             leading: Icon(Icons.lock_outlined),
             title: Text('How are my chats secured?'),
-            subtitle: Text('Your chats are protected with end-to-end encryption, ensuring only you and your friend can read them.'),
+            subtitle: Text(
+              'Your chats are protected with end-to-end encryption, ensuring only you and your friend can read them.',
+            ),
           ),
         ],
       ),

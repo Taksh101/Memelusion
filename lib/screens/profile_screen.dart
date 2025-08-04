@@ -115,267 +115,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ).showSnackBar(SnackBar(content: Text("Upload failed: $e")));
     }
   }
-
-  Future<void> _editUsername() async {
-    if (currentUser == null || userData == null) {
-      print('❌ Cannot edit username: userData or currentUser is null');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error: User not logged in')),
-        );
-      }
-      return;
-    }
-
-    // Reset controller to current Firestore username
-    _usernameController.text = userData!['username'] ?? '';
-    String? errorMessage;
-    bool isValid = false; // Track username validity
-
-    await showDialog(
-      context: context,
-      builder:
-          (dialogContext) => StatefulBuilder(
-            builder:
-                (context, setStateSB) => SizedBox(
-                  width:
-                      MediaQuery.of(dialogContext).size.width *
-                      0.9, // Responsive width
-                  child: AlertDialog(
-                    backgroundColor: Colors.grey[900],
-                    title: const Text(
-                      "Edit Username",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    content: Container(
-                      constraints: const BoxConstraints(
-                        maxWidth: 400,
-                      ), // Max width for TextField
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: TextField(
-                        controller: _usernameController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          labelText: 'Username',
-                          labelStyle: const TextStyle(color: Colors.grey),
-                          border: const OutlineInputBorder(),
-                          errorText: errorMessage,
-                          errorMaxLines: 2, // Allow validation message to wrap
-                        ),
-                        onChanged: (val) async {
-                          final newUsername = val.trim();
-                          if (newUsername.isEmpty) {
-                            setStateSB(() {
-                              errorMessage = 'Username cannot be empty';
-                              isValid = false;
-                            });
-                          } else if (!RegExp(
-                            r'^[a-zA-Z0-9_]+$',
-                          ).hasMatch(newUsername)) {
-                            setStateSB(() {
-                              errorMessage =
-                                  'Only letters, numbers, and underscores allowed';
-                              isValid = false;
-                            });
-                          } else {
-                            // Check if username exists in DB
-                            final existing =
-                                await FirebaseFirestore.instance
-                                    .collection('users')
-                                    .where('username', isEqualTo: newUsername)
-                                    .get();
-                            setStateSB(() {
-                              if (existing.docs.isNotEmpty &&
-                                  existing.docs.first.id != currentUser!.uid) {
-                                errorMessage = 'Username already exists';
-                                isValid = false;
-                              } else {
-                                errorMessage = null;
-                                isValid = true;
-                              }
-                            });
-                          }
-                        },
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text(
-                          "Cancel",
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed:
-                            isValid
-                                ? () async {
-                                  final newUsername =
-                                      _usernameController.text.trim();
-                                  try {
-                                    print(
-                                      '🔄 Updating username to: $newUsername',
-                                    );
-                                    await FirebaseFirestore.instance.runTransaction((
-                                      txn,
-                                    ) async {
-                                      final userRef = FirebaseFirestore.instance
-                                          .collection('users')
-                                          .doc(currentUser!.uid);
-                                      final userDoc = await txn.get(userRef);
-                                      if (!userDoc.exists) {
-                                        throw 'User document does not exist';
-                                      }
-                                      final oldUsername =
-                                          userDoc.data()?['username']
-                                              as String? ??
-                                          '';
-
-                                      // Update current user's username
-                                      txn.update(userRef, {
-                                        'username': newUsername,
-                                      });
-                                      print(
-                                        '🔄 Updated username for UID ${currentUser!.uid} to $newUsername',
-                                      );
-
-                                      // Update friends, friendRequests, and notifications in other users
-                                      final allUsers =
-                                          await FirebaseFirestore.instance
-                                              .collection('users')
-                                              .get();
-                                      for (final d in allUsers.docs) {
-                                        final data = d.data();
-                                        final userId = d.id;
-
-                                        // Update friends arrays
-                                        final friends = List<String>.from(
-                                          data['friends'] ?? [],
-                                        );
-                                        if (friends.contains(oldUsername)) {
-                                          final updated =
-                                              friends
-                                                  .map(
-                                                    (f) =>
-                                                        f == oldUsername
-                                                            ? newUsername
-                                                            : f,
-                                                  )
-                                                  .toList();
-                                          txn.update(d.reference, {
-                                            'friends': updated,
-                                          });
-                                          print(
-                                            '🔄 Updated friends for user $userId: $updated',
-                                          );
-                                        }
-
-                                        // Update friendRequests arrays
-                                        final friendRequests =
-                                            List<String>.from(
-                                              data['friendRequests'] ?? [],
-                                            );
-                                        if (friendRequests.contains(
-                                          oldUsername,
-                                        )) {
-                                          final updatedRequests =
-                                              friendRequests
-                                                  .map(
-                                                    (f) =>
-                                                        f == oldUsername
-                                                            ? newUsername
-                                                            : f,
-                                                  )
-                                                  .toList();
-                                          txn.update(d.reference, {
-                                            'friendRequests': updatedRequests,
-                                          });
-                                          print(
-                                            '🔄 Updated friendRequests for user $userId: $updatedRequests',
-                                          );
-                                        }
-
-                                        // Update notifications array
-                                        final notifications =
-                                            List<Map<String, dynamic>>.from(
-                                              data['notifications'] ?? [],
-                                            );
-                                        if (notifications.any(
-                                          (n) => n['from'] == oldUsername,
-                                        )) {
-                                          final updatedNotifications =
-                                              notifications.map((n) {
-                                                if (n['from'] == oldUsername) {
-                                                  print(
-                                                    '🔄 Updating notification for user $userId: from $oldUsername to $newUsername',
-                                                  );
-                                                  return {
-                                                    ...n,
-                                                    'from': newUsername,
-                                                  };
-                                                }
-                                                return n;
-                                              }).toList();
-                                          txn.update(d.reference, {
-                                            'notifications':
-                                                updatedNotifications,
-                                          });
-                                          print(
-                                            '🔄 Updated notifications array for user $userId with ${updatedNotifications.length} items',
-                                          );
-                                        }
-                                      }
-                                    });
-
-                                    // Update local state before closing dialog
-                                    setState(() {
-                                      _currentUsername = newUsername;
-                                      userData?['username'] = newUsername;
-                                      print(
-                                        '✅ Username updated locally: $newUsername',
-                                      );
-                                    });
-
-                                    // Close dialog
-                                    Navigator.pop(context);
-
-                                    // Refresh friends list
-                                    await _fetchFriends();
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text("Username updated"),
-                                        ),
-                                      );
-                                    }
-                                  } catch (e) {
-                                    print('❌ Error updating username: $e');
-                                    if (mounted) {
-                                      setStateSB(
-                                        () =>
-                                            errorMessage =
-                                                'Failed to update username: $e',
-                                      );
-                                    }
-                                  }
-                                }
-                                : null, // Disable Save button if not valid
-                        child: Text(
-                          "Save",
-                          style: TextStyle(
-                            color: isValid ? Colors.greenAccent : Colors.grey,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-          ),
-    );
-  }
-
   Future<void> _fetchSavedMemes() async {
     final uid = currentUser?.uid;
     if (uid == null) return;
@@ -558,354 +297,405 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _searchAndAddFriend() async {
+    String query = '';
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        List<Map<String, dynamic>> results = [];
 
-Future<void> _searchAndAddFriend() async {
-  String query = '';
-  showDialog(
-    context: context,
-    builder: (dialogContext) {
-      List<Map<String, dynamic>> results = [];
-
-      return StatefulBuilder(
-        builder: (context, setStateSB) => SizedBox(
-          width: MediaQuery.of(dialogContext).size.width * 0.98, // Very wide dialog
-          child: AlertDialog(
-            backgroundColor: Colors.grey[900],
-            title: const Text(
-              "Add Friend",
-              style: TextStyle(color: Colors.white),
-            ),
-            content: Container(
-              constraints: const BoxConstraints(
-                maxWidth: 600,
-              ), // Extra room for long usernames
-              padding: const EdgeInsets.symmetric(horizontal: 12.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    onChanged: (val) async {
-                      query = val.trim();
-                      print('🔍 Searching for username starting with: $query');
-                      if (query.isEmpty) {
-                        setStateSB(() => results = []);
-                        print('📭 Empty query, cleared results');
-                        return;
-                      }
-
-                      try {
-                        // Query for both lowercase and uppercase first letter
-                        final lowerQuery = query.toLowerCase();
-                        final upperQuery = query.isNotEmpty
-                            ? query[0].toUpperCase() + (query.length > 1 ? query.substring(1).toLowerCase() : '')
-                            : '';
-                        final queries = <Future<QuerySnapshot>>[];
-
-                        // Add query for lowercase (e.g., "a" or "alex")
-                        queries.add(
-                          FirebaseFirestore.instance
-                              .collection('users')
-                              .where('username', isGreaterThanOrEqualTo: lowerQuery)
-                              .where('username', isLessThanOrEqualTo: '$lowerQuery\uf8ff')
-                              .get(),
-                        );
-
-                        // Add query for uppercase first letter (e.g., "A" or "Alex")
-                        if (upperQuery != lowerQuery) {
-                          queries.add(
-                            FirebaseFirestore.instance
-                                .collection('users')
-                                .where('username', isGreaterThanOrEqualTo: upperQuery)
-                                .where('username', isLessThanOrEqualTo: '$upperQuery\uf8ff')
-                                .get(),
-                          );
-                        }
-
-                        // Execute both queries
-                        final queryResults = await Future.wait(queries);
-
-                        // Combine and filter results
-                        results = queryResults
-                            .expand((res) => res.docs)
-                            .where((d) => d.id != currentUser!.uid)
-                            .where((d) => (d['username'] as String)
-                                .toLowerCase()
-                                .startsWith(query.toLowerCase()))
-                            .map(
-                              (d) => {
-                                'username': d['username'] ?? '',
-                                'profilePic': d['profilePic'] ?? '',
-                                'ref': d.reference,
-                                'uid': d.id,
-                                'friendRequests': List<String>.from(
-                                  d['friendRequests'] ?? [],
-                                ),
-                              },
-                            )
-                            .toSet() // Remove duplicates
-                            .toList();
-
-                        print(
-                          '✅ Found ${results.length} users: ${results.map((u) => u['username']).toList()}',
-                        );
-                        setStateSB(() {});
-                      } catch (e) {
-                        print('❌ Error searching users: $e');
-                        setStateSB(() => results = []);
-                      }
-                    },
-                    decoration: const InputDecoration(
-                      hintText: "Enter username",
-                      hintStyle: TextStyle(color: Colors.white70),
-                      border: OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Color.fromRGBO(33, 33, 33, 1),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 14.0,
-                      ),
-                    ),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                    ),
+        return StatefulBuilder(
+          builder:
+              (context, setStateSB) => SizedBox(
+                width:
+                    MediaQuery.of(dialogContext).size.width *
+                    0.98, // Very wide dialog
+                child: AlertDialog(
+                  backgroundColor: Colors.grey[900],
+                  title: const Text(
+                    "Add Friend",
+                    style: TextStyle(color: Colors.white),
                   ),
-                  const SizedBox(height: 16),
-                  if (results.isNotEmpty)
-                    ...results.map((user) {
-                      final myUsername = userData?['username'];
-                      final alreadySent =
-                          myUsername != null &&
-                          user['friendRequests'].contains(myUsername);
+                  content: Container(
+                    constraints: const BoxConstraints(
+                      maxWidth: 600,
+                    ), // Extra room for long usernames
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          onChanged: (val) async {
+                            query = val.trim();
+                            print(
+                              '🔍 Searching for username starting with: $query',
+                            );
+                            if (query.isEmpty) {
+                              setStateSB(() => results = []);
+                              print('📭 Empty query, cleared results');
+                              return;
+                            }
 
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 8.0,
-                          horizontal: 12.0,
+                            try {
+                              // Query for both lowercase and uppercase first letter
+                              final lowerQuery = query.toLowerCase();
+                              final upperQuery =
+                                  query.isNotEmpty
+                                      ? query[0].toUpperCase() +
+                                          (query.length > 1
+                                              ? query.substring(1).toLowerCase()
+                                              : '')
+                                      : '';
+                              final queries = <Future<QuerySnapshot>>[];
+
+                              // Add query for lowercase (e.g., "a" or "alex")
+                              queries.add(
+                                FirebaseFirestore.instance
+                                    .collection('users')
+                                    .where(
+                                      'username',
+                                      isGreaterThanOrEqualTo: lowerQuery,
+                                    )
+                                    .where(
+                                      'username',
+                                      isLessThanOrEqualTo: '$lowerQuery\uf8ff',
+                                    )
+                                    .get(),
+                              );
+
+                              // Add query for uppercase first letter (e.g., "A" or "Alex")
+                              if (upperQuery != lowerQuery) {
+                                queries.add(
+                                  FirebaseFirestore.instance
+                                      .collection('users')
+                                      .where(
+                                        'username',
+                                        isGreaterThanOrEqualTo: upperQuery,
+                                      )
+                                      .where(
+                                        'username',
+                                        isLessThanOrEqualTo:
+                                            '$upperQuery\uf8ff',
+                                      )
+                                      .get(),
+                                );
+                              }
+
+                              // Execute both queries
+                              final queryResults = await Future.wait(queries);
+
+                              // Combine and filter results
+                              results =
+                                  queryResults
+                                      .expand((res) => res.docs)
+                                      .where((d) => d.id != currentUser!.uid)
+                                      .where(
+                                        (d) => (d['username'] as String)
+                                            .toLowerCase()
+                                            .startsWith(query.toLowerCase()),
+                                      )
+                                      .map(
+                                        (d) => {
+                                          'username': d['username'] ?? '',
+                                          'profilePic': d['profilePic'] ?? '',
+                                          'ref': d.reference,
+                                          'uid': d.id,
+                                          'friendRequests': List<String>.from(
+                                            d['friendRequests'] ?? [],
+                                          ),
+                                        },
+                                      )
+                                      .toSet() // Remove duplicates
+                                      .toList();
+
+                              print(
+                                '✅ Found ${results.length} users: ${results.map((u) => u['username']).toList()}',
+                              );
+                              setStateSB(() {});
+                            } catch (e) {
+                              print('❌ Error searching users: $e');
+                              setStateSB(() => results = []);
+                            }
+                          },
+                          decoration: const InputDecoration(
+                            hintText: "Enter username",
+                            hintStyle: TextStyle(color: Colors.white70),
+                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: Color.fromRGBO(33, 33, 33, 1),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 14.0,
+                            ),
+                          ),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
                         ),
-                        child: Row(
-                          children: [
-                            // Profile picture
-                            Padding(
-                              padding: const EdgeInsets.only(right: 16.0),
-                              child: CircleAvatar(
-                                backgroundImage: user['profilePic'] != ''
-                                    ? NetworkImage(user['profilePic'])
-                                    : const AssetImage(
-                                        'assets/img/default_profile.png',
-                                      ) as ImageProvider,
-                                radius: 22,
-                              ),
-                            ),
-                            // Username (horizontally scrollable)
-                            Expanded(
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Text(
-                                  user['username'],
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontFamily: 'Inter',
-                                  ),
-                                  softWrap: false,
-                                  overflow: TextOverflow.clip,
-                                ),
-                              ),
-                            ),
-                            // Button
-                            Padding(
-                              padding: const EdgeInsets.only(left: 16.0),
-                              child: Builder(
-                                builder: (_) {
-                                  final username = user['username'];
-                                  if ((userData?['friends'] ?? [])
-                                      .contains(username)) {
-                                    return ElevatedButton(
-                                      onPressed: null,
-                                      style: ElevatedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8.0, // Reduced from 16.0
-                                        ),
-                                      ),
-                                      child: const Text("Friend"),
-                                    );
-                                  }
-                                  if ((user['friendRequests'] ?? [])
-                                      .contains(myUsername)) {
-                                    return ElevatedButton(
-                                      onPressed: null,
-                                      style: ElevatedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8.0, // Reduced from 16.0
-                                        ),
-                                      ),
-                                      child: const Text("Sent"),
-                                    );
-                                  }
+                        const SizedBox(height: 16),
+                        if (results.isNotEmpty)
+                          ...results.map((user) {
+                            final myUsername = userData?['username'];
+                            final alreadySent =
+                                myUsername != null &&
+                                user['friendRequests'].contains(myUsername);
 
-                                  return ElevatedButton(
-                                    onPressed: () async {
-                                      try {
-                                        await user['ref'].update({
-                                          'friendRequests':
-                                              FieldValue.arrayUnion([
-                                            myUsername,
-                                          ]),
-                                          'notifications':
-                                              FieldValue.arrayUnion([
-                                            {
-                                              'type': 'friend_request',
-                                              'from': myUsername,
-                                              'timestamp':
-                                                  DateTime.now()
-                                                      .toIso8601String(),
-                                              'seen': false,
-                                            },
-                                          ]),
-                                        });
-                                        print(
-                                          '✅ Friend request sent to: $username',
-                                        );
-                                        Navigator.pop(context);
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              "Friend request sent",
-                                            ),
-                                          ),
-                                        );
-                                      } catch (e) {
-                                        print(
-                                          '❌ Error sending friend request: $e',
-                                        );
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              "Failed to send friend request: $e",
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.greenAccent,
-                                      foregroundColor: Colors.black,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8.0, // Reduced from 16.0
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8.0,
+                                horizontal: 12.0,
+                              ),
+                              child: Row(
+                                children: [
+                                  // Profile picture
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 16.0),
+                                    child: CircleAvatar(
+                                      backgroundImage:
+                                          user['profilePic'] != ''
+                                              ? NetworkImage(user['profilePic'])
+                                              : const AssetImage(
+                                                    'assets/img/default_profile.png',
+                                                  )
+                                                  as ImageProvider,
+                                      radius: 22,
+                                    ),
+                                  ),
+                                  // Username (horizontally scrollable)
+                                  Expanded(
+                                    child: SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: Text(
+                                        user['username'],
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontFamily: 'Inter',
+                                        ),
+                                        softWrap: false,
+                                        overflow: TextOverflow.clip,
                                       ),
                                     ),
-                                    child: const Text("Add"),
-                                  );
-                                },
+                                  ),
+                                  // Button
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 16.0),
+                                    child: Builder(
+                                      builder: (_) {
+                                        final username = user['username'];
+                                        if ((userData?['friends'] ?? [])
+                                            .contains(username)) {
+                                          return ElevatedButton(
+                                            onPressed: null,
+                                            style: ElevatedButton.styleFrom(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal:
+                                                        8.0, // Reduced from 16.0
+                                                  ),
+                                            ),
+                                            child: const Text("Friend"),
+                                          );
+                                        }
+                                        if ((user['friendRequests'] ?? [])
+                                            .contains(myUsername)) {
+                                          return ElevatedButton(
+                                            onPressed: null,
+                                            style: ElevatedButton.styleFrom(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal:
+                                                        8.0, // Reduced from 16.0
+                                                  ),
+                                            ),
+                                            child: const Text("Sent"),
+                                          );
+                                        }
+
+                                        return ElevatedButton(
+                                          onPressed: () async {
+                                            try {
+                                              await user['ref'].update({
+                                                'friendRequests':
+                                                    FieldValue.arrayUnion([
+                                                      myUsername,
+                                                    ]),
+                                                'notifications':
+                                                    FieldValue.arrayUnion([
+                                                      {
+                                                        'type':
+                                                            'friend_request',
+                                                        'from': myUsername,
+                                                        'timestamp':
+                                                            DateTime.now()
+                                                                .toIso8601String(),
+                                                        'seen': false,
+                                                      },
+                                                    ]),
+                                              });
+                                              print(
+                                                '✅ Friend request sent to: $username',
+                                              );
+                                              Navigator.pop(context);
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    "Friend request sent",
+                                                  ),
+                                                ),
+                                              );
+                                            } catch (e) {
+                                              print(
+                                                '❌ Error sending friend request: $e',
+                                              );
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    "Failed to send friend request: $e",
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.greenAccent,
+                                            foregroundColor: Colors.black,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal:
+                                                  8.0, // Reduced from 16.0
+                                            ),
+                                          ),
+                                          child: const Text("Add"),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
+                            );
+                          }),
+                        if (results.isEmpty && query.isNotEmpty)
+                          const Text(
+                            'No results found',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 16,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+        );
+      },
+    );
+  }
+
+  void showFullScreenImageDialog(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => GestureDetector(
+            onTap: () => Navigator.of(context).pop(), // Tap outside to close
+            child: Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.all(16), // Increased from 10
+              child: Stack(
+                children: [
+                  // Blur background
+                  Positioned.fill(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                      child: Container(
+                        color: Colors.black.withOpacity(
+                          0.7,
+                        ), // Semi-transparent black
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: GestureDetector(
+                      onTap:
+                          () =>
+                              Navigator.of(context).pop(), // Tap image to close
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                      );
-                    }),
-                  if (results.isEmpty && query.isNotEmpty)
-                    const Text(
-                      'No results found',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    },
-  );
-}
-
-  void showFullScreenImageDialog(BuildContext context, String imageUrl) {
-  showDialog(
-    context: context,
-    builder: (context) => GestureDetector(
-      onTap: () => Navigator.of(context).pop(), // Tap outside to close
-      child: Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(16), // Increased from 10
-        child: Stack(
-          children: [
-            // Blur background
-            Positioned.fill(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                child: Container(
-                  color: Colors.black.withOpacity(0.7), // Semi-transparent black
-                ),
-              ),
-            ),
-            Center(
-              child: GestureDetector(
-                onTap: () => Navigator.of(context).pop(), // Tap image to close
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Hero(
-                    tag: imageUrl,
-                    child: InteractiveViewer(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          imageUrl,
-                          fit: BoxFit.contain,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return const Center(
-                              child: CircularProgressIndicator(
-                                color: Colors.greenAccent, // Match app's accent
+                        child: Hero(
+                          tag: imageUrl,
+                          child: InteractiveViewer(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                imageUrl,
+                                fit: BoxFit.contain,
+                                loadingBuilder: (
+                                  context,
+                                  child,
+                                  loadingProgress,
+                                ) {
+                                  if (loadingProgress == null) return child;
+                                  return const Center(
+                                    child: CircularProgressIndicator(
+                                      color:
+                                          Colors
+                                              .greenAccent, // Match app's accent
+                                    ),
+                                  );
+                                },
+                                errorBuilder:
+                                    (
+                                      context,
+                                      error,
+                                      stackTrace,
+                                    ) => const Center(
+                                      child: Icon(
+                                        Icons.error,
+                                        color:
+                                            Colors
+                                                .redAccent, // Match app's accent
+                                        size: 40,
+                                      ),
+                                    ),
                               ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Center(
-                            child: Icon(
-                              Icons.error,
-                              color: Colors.redAccent, // Match app's accent
-                              size: 40,
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
+                  Positioned(
+                    top: 5,
+                    right: 5,
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.close,
+                        color: Colors.redAccent, // Changed to redAccent
+                        size: 32, // Slightly larger
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                ],
               ),
             ),
-            Positioned(
-              top: 5,
-              right: 5,
-              child: IconButton(
-                icon: const Icon(
-                  Icons.close,
-                  color: Colors.redAccent, // Changed to redAccent
-                  size: 32, // Slightly larger
-                ),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
+          ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1014,10 +804,6 @@ Future<void> _searchAndAddFriend() async {
             ],
           ),
           const SizedBox(height: 20),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
               Text(
                 _currentUsername ?? userData?['username'] ?? '',
                 style: const TextStyle(
@@ -1026,13 +812,6 @@ Future<void> _searchAndAddFriend() async {
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _editUsername,
-                child: Icon(Icons.edit, size: 18, color: Colors.grey[400]),
-              ),
-            ],
-          ),
           const SizedBox(height: 6),
 
           Text(
