@@ -7,7 +7,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:memelusion/screens/utils.dart' as utils;
 import 'package:memelusion/services/meme_service.dart';
 
-// Dummy DocumentSnapshot to handle null case in LikeCountBadge
 class FakeDocumentSnapshot implements DocumentSnapshot {
   @override
   dynamic operator [](Object key) => null;
@@ -54,9 +53,12 @@ class _LikeCountBadgeState extends State<LikeCountBadge> {
   void initState() {
     super.initState();
     final memeId = widget.currentMeme?['id'];
-    _future = memeId != null
-        ? FirebaseFirestore.instance.collection('memes').doc(memeId).get()
-        : Future.value(FakeDocumentSnapshot()); // Fix: Use FakeDocumentSnapshot
+    _future =
+        memeId != null
+            ? FirebaseFirestore.instance.collection('memes').doc(memeId).get()
+            : Future.value(
+              FakeDocumentSnapshot(),
+            ); // Fix: Use FakeDocumentSnapshot
   }
 
   @override
@@ -92,7 +94,9 @@ class _LikeCountBadgeState extends State<LikeCountBadge> {
 
         final likedBy = List<String>.from(snapshot.data?['likedBy'] ?? []);
         final hasLiked = likedBy.contains(uid);
-        print('🔍 LikeCountBadge: uid=$uid, memeId=$memeId, likedBy=$likedBy, hasLiked=$hasLiked');
+        print(
+          '🔍 LikeCountBadge: uid=$uid, memeId=$memeId, likedBy=$likedBy, hasLiked=$hasLiked',
+        );
 
         return widget.badge(
           Icon(
@@ -120,7 +124,9 @@ class ShareCountBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shareCount = currentMeme?['shareCount'] ?? 0;
-    print('🔍 ShareCountBadge: memeId=${currentMeme?['id']}, shareCount=$shareCount');
+    print(
+      '🔍 ShareCountBadge: memeId=${currentMeme?['id']}, shareCount=$shareCount',
+    );
     return badge(
       Icon(Icons.share, size: 16, color: Colors.greenAccent[400]),
       shareCount,
@@ -164,12 +170,13 @@ class _HomePageState extends State<HomePage> {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
 
-    final snap = await _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('notifications')
-        .where('read', isEqualTo: false)
-        .get();
+    final snap =
+        await _firestore
+            .collection('users')
+            .doc(uid)
+            .collection('notifications')
+            .where('read', isEqualTo: false)
+            .get();
 
     setState(() {
       _unreadNotifCount = snap.docs.length;
@@ -190,9 +197,10 @@ class _HomePageState extends State<HomePage> {
     List<DocumentSnapshot> allMemes = snapshot.docs;
 
     if (selectedCategories.isNotEmpty) {
-      allMemes = allMemes
-          .where((doc) => selectedCategories.contains(doc['category']))
-          .toList();
+      allMemes =
+          allMemes
+              .where((doc) => selectedCategories.contains(doc['category']))
+              .toList();
     }
 
     if (allMemes.isEmpty) {
@@ -210,7 +218,9 @@ class _HomePageState extends State<HomePage> {
     final imageUrl = randomDoc['imageUrl'];
     final image = NetworkImage(imageUrl);
     final completer = Completer<void>();
-    image.resolve(const ImageConfiguration()).addListener(
+    image
+        .resolve(const ImageConfiguration())
+        .addListener(
           ImageStreamListener((ImageInfo info, _) {
             _aspectRatio = info.image.width / info.image.height;
             completer.complete();
@@ -227,7 +237,9 @@ class _HomePageState extends State<HomePage> {
       };
       _isLoading = false;
       _resetCard();
-      print('✅ Loaded meme: id=${currentMeme!['id']}, shareCount=${currentMeme!['shareCount']}');
+      print(
+        '✅ Loaded meme: id=${currentMeme!['id']}, shareCount=${currentMeme!['shareCount']}',
+      );
     });
   }
 
@@ -328,12 +340,15 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+    final userDoc =
+        await _firestore.collection('users').doc(currentUser.uid).get();
     if (!userDoc.exists || userDoc.data() == null) {
       print('❌ User document not found: uid=${currentUser.uid}');
       return;
     }
-    final List<String> friends = List<String>.from(userDoc.data()!['friends'] ?? []);
+    final List<String> friends = List<String>.from(
+      userDoc.data()!['friends'] ?? [],
+    );
 
     await showModalBottomSheet(
       context: context,
@@ -342,150 +357,230 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       isScrollControlled: true,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setModalState) => Padding(
-          padding: const EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 16,
-            bottom: 32,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                "Share Meme",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontFamily: 'Inter',
+      builder:
+          (_) => StatefulBuilder(
+            builder: (context, setModalState) {
+              bool isSending = false;
+              return Padding(
+                padding: const EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 16,
+                  bottom: 32,
                 ),
-              ),
-              const SizedBox(height: 12),
-              if (friends.isEmpty)
-                const Text(
-                  "No friends found.",
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontFamily: 'Inter',
-                  ),
-                )
-              else
-                ...friends.map(
-                  (friend) => CheckboxListTile(
-                    title: Text(
-                      friend,
-                      style: const TextStyle(
-                        color: Colors.white70,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      "Share Meme",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
                         fontFamily: 'Inter',
                       ),
                     ),
-                    value: selectedFriends.contains(friend),
-                    onChanged: (val) {
-                      setModalState(() {
-                        val == true ? selectedFriends.add(friend) : selectedFriends.remove(friend);
-                      });
-                    },
-                    activeColor: Colors.greenAccent[400],
-                  ),
-                ),
-              const SizedBox(height: 14),
-              if (friends.isNotEmpty)
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.greenAccent[400],
-                    foregroundColor: Colors.black,
-                    minimumSize: const Size(double.infinity, 46),
-                  ),
-                  icon: const Icon(Icons.send),
-                  label: const Text(
-                    'Send',
-                    style: TextStyle(fontFamily: 'Inter'),
-                  ),
-                  onPressed: selectedFriends.isEmpty
-                      ? null
-                      : () async {
-                          final senderUsername = userDoc.data()!['username'] as String?;
-                          if (senderUsername == null) {
-                            print('❌ No sender username: uid=${currentUser.uid}');
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text("Error: User profile not found"),
-                                duration: const Duration(seconds: 2),
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                            );
-                            return;
-                          }
-                          int shares = 0;
-                          for (final friend in selectedFriends) {
-                            try {
-                              await _memeService.shareMeme(
-                                memeId: currentMeme!['id'],
-                                senderUsername: senderUsername,
-                                receiverUsername: friend,
-                                imageUrl: currentMeme!['imageUrl'],
-                              );
-                              shares++;
-                              print('✅ Shared meme to $friend');
-                            } catch (e) {
-                              print('❌ Error sharing to $friend: $e');
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text("Error sharing with $friend"),
-                                  duration: const Duration(seconds: 2),
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                              );
-                            }
-                          }
-                          if (shares > 0) {
-                            try {
-                              await _firestore.collection('users').doc(currentUser.uid).update({
-                                'sharedMemesCount': FieldValue.increment(1),
-                              });
-                              final memeDoc = await _firestore
-                                  .collection('memes')
-                                  .doc(currentMeme!['id'])
-                                  .get();
-                              if (memeDoc.exists && memeDoc.data() != null) {
-                                setState(() {
-                                  currentMeme!['shareCount'] = memeDoc['shareCount'] ?? 0;
-                                  print('🔄 Updated shareCount: ${currentMeme!['shareCount']}');
-                                });
-                              } else {
-                                print('❌ Meme document not found: id=${currentMeme!['id']}');
-                                await _getRandomMeme();
-                              }
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text("Meme shared with $shares friend${shares > 1 ? 's' : ''}"),
-                                  duration: const Duration(seconds: 2),
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                              );
-                            } catch (e) {
-                              print('❌ Error updating data: $e');
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text("Error updating data"),
-                                  duration: const Duration(seconds: 2),
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                              );
-                            }
-                          }
+                    const SizedBox(height: 12),
+                    if (friends.isEmpty)
+                      const Text(
+                        "No friends found.",
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontFamily: 'Inter',
+                        ),
+                      )
+                    else
+                      ...friends.map(
+                        (friend) => CheckboxListTile(
+                          title: Text(
+                            friend,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontFamily: 'Inter',
+                            ),
+                          ),
+                          value: selectedFriends.contains(friend),
+                          onChanged: (val) {
+                            setModalState(() {
+                              val == true
+                                  ? selectedFriends.add(friend)
+                                  : selectedFriends.remove(friend);
+                            });
+                          },
+                          activeColor: Colors.greenAccent[400],
+                        ),
+                      ),
+                    const SizedBox(height: 14),
+                    if (friends.isNotEmpty)
+                      StatefulBuilder(
+                        builder: (context, setSendState) {
+                          return ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.greenAccent[400],
+                              foregroundColor: Colors.black,
+                              minimumSize: const Size(double.infinity, 46),
+                            ),
+                            icon:
+                                isSending
+                                    ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.black,
+                                        strokeWidth: 2.5,
+                                      ),
+                                    )
+                                    : const Icon(Icons.send),
+                            label: Text(
+                              isSending ? 'Sending...' : 'Send',
+                              style: const TextStyle(fontFamily: 'Inter'),
+                            ),
+                            onPressed:
+                                selectedFriends.isEmpty || isSending
+                                    ? null
+                                    : () async {
+                                      setSendState(() => isSending = true);
+                                      final senderUsername =
+                                          userDoc.data()!['username']
+                                              as String?;
+                                      if (senderUsername == null) {
+                                        print(
+                                          '❌ No sender username: uid=${currentUser.uid}',
+                                        );
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              "Error: User profile not found",
+                                            ),
+                                            duration: const Duration(
+                                              seconds: 2,
+                                            ),
+                                            behavior: SnackBarBehavior.floating,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                        );
+                                        setSendState(() => isSending = false);
+                                        return;
+                                      }
+                                      int shares = 0;
+                                      for (final friend in selectedFriends) {
+                                        try {
+                                          await _memeService.shareMeme(
+                                            memeId: currentMeme!['id'],
+                                            senderUsername: senderUsername,
+                                            receiverUsername: friend,
+                                            imageUrl: currentMeme!['imageUrl'],
+                                          );
+                                          shares++;
+                                          print('✅ Shared meme to $friend');
+                                        } catch (e) {
+                                          print(
+                                            '❌ Error sharing to $friend: $e',
+                                          );
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                "Error sharing with $friend",
+                                              ),
+                                              duration: const Duration(
+                                                seconds: 2,
+                                              ),
+                                              behavior:
+                                                  SnackBarBehavior.floating,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                      if (shares > 0) {
+                                        try {
+                                          await _firestore
+                                              .collection('users')
+                                              .doc(currentUser.uid)
+                                              .update({
+                                                'sharedMemesCount':
+                                                    FieldValue.increment(1),
+                                              });
+                                          final memeDoc =
+                                              await _firestore
+                                                  .collection('memes')
+                                                  .doc(currentMeme!['id'])
+                                                  .get();
+                                          if (memeDoc.exists &&
+                                              memeDoc.data() != null) {
+                                            setState(() {
+                                              currentMeme!['shareCount'] =
+                                                  memeDoc['shareCount'] ?? 0;
+                                              print(
+                                                '🔄 Updated shareCount: ${currentMeme!['shareCount']}',
+                                              );
+                                            });
+                                          } else {
+                                            print(
+                                              '❌ Meme document not found: id=${currentMeme!['id']}',
+                                            );
+                                            await _getRandomMeme();
+                                          }
+                                          Navigator.pop(context);
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                "Meme shared with $shares friend${shares > 1 ? 's' : ''}",
+                                              ),
+                                              duration: const Duration(
+                                                seconds: 2,
+                                              ),
+                                              behavior:
+                                                  SnackBarBehavior.floating,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                          );
+                                        } catch (e) {
+                                          print('❌ Error updating data: $e');
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                "Error updating data",
+                                              ),
+                                              duration: const Duration(
+                                                seconds: 2,
+                                              ),
+                                              behavior:
+                                                  SnackBarBehavior.floating,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                      setSendState(() => isSending = false);
+                                    },
+                          );
                         },
+                      ),
+                  ],
                 ),
-            ],
+              );
+            },
           ),
-        ),
-      ),
     );
 
     setState(_resetCard);
@@ -507,25 +602,26 @@ class _HomePageState extends State<HomePage> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(15),
-            child: _aspectRatio != null
-                ? ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxHeight: 460,
-                      maxWidth: 340,
-                    ),
-                    child: AspectRatio(
-                      aspectRatio: _aspectRatio!,
-                      child: Image.network(url, fit: BoxFit.contain),
-                    ),
-                  )
-                : const SizedBox(
-                    height: 300,
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        color: Colors.greenAccent,
+            child:
+                _aspectRatio != null
+                    ? ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxHeight: 460,
+                        maxWidth: 340,
+                      ),
+                      child: AspectRatio(
+                        aspectRatio: _aspectRatio!,
+                        child: Image.network(url, fit: BoxFit.contain),
+                      ),
+                    )
+                    : const SizedBox(
+                      height: 300,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: Colors.greenAccent,
+                        ),
                       ),
                     ),
-                  ),
           ),
           const SizedBox(height: 10),
           Row(
@@ -559,7 +655,9 @@ class _HomePageState extends State<HomePage> {
                   child: Row(
                     children: [
                       Icon(
-                        isSaved ? Icons.bookmark : Icons.bookmark_border_outlined,
+                        isSaved
+                            ? Icons.bookmark
+                            : Icons.bookmark_border_outlined,
                         size: 16,
                         color: isSaved ? Colors.yellowAccent : Colors.white70,
                       ),
@@ -592,39 +690,39 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _badge(Icon icon, int count) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: Colors.black,
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(15),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(
+      color: Colors.black,
+      border: Border.all(color: Colors.grey.shade300),
+      borderRadius: BorderRadius.circular(15),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        icon,
+        const SizedBox(width: 5),
+        Text(
+          '$count',
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            icon,
-            const SizedBox(width: 5),
-            Text(
-              '$count',
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-          ],
-        ),
-      );
+      ],
+    ),
+  );
 
   Widget _buildProfileButton() => Positioned(
-        bottom: 12,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/profile'),
-            child: const CircleAvatar(
-              radius: 30,
-              backgroundColor: Colors.greenAccent,
-              child: Icon(Icons.person, color: Colors.black, size: 32),
-            ),
-          ),
+    bottom: 12,
+    child: MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => Navigator.pushNamed(context, '/profile'),
+        child: const CircleAvatar(
+          radius: 30,
+          backgroundColor: Colors.greenAccent,
+          child: Icon(Icons.person, color: Colors.black, size: 32),
         ),
-      );
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -668,29 +766,35 @@ class _HomePageState extends State<HomePage> {
                   _getRandomMeme();
                 });
               },
-              itemBuilder: (context) => ['Animal', 'Corporate', 'Sarcastic', 'Dark']
-                  .map(
-                    (cat) => CheckedPopupMenuItem<String>(
-                      value: cat,
-                      checked: selectedCategories.contains(cat),
-                      child: Text(
-                        cat,
-                        style: const TextStyle(fontFamily: 'Inter'),
-                      ),
-                    ),
-                  )
-                  .toList(),
+              itemBuilder:
+                  (context) =>
+                      ['Animal', 'Corporate', 'Sarcastic', 'Dark']
+                          .map(
+                            (cat) => CheckedPopupMenuItem<String>(
+                              value: cat,
+                              checked: selectedCategories.contains(cat),
+                              child: Text(
+                                cat,
+                                style: const TextStyle(fontFamily: 'Inter'),
+                              ),
+                            ),
+                          )
+                          .toList(),
             ),
             StreamBuilder<DocumentSnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(FirebaseAuth.instance.currentUser!.uid)
-                  .snapshots(),
+              stream:
+                  FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(FirebaseAuth.instance.currentUser!.uid)
+                      .snapshots(),
               builder: (context, snapshot) {
                 int unreadCount = 0;
                 if (snapshot.hasData) {
-                  final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-                  final notifs = List<Map<String, dynamic>>.from(data['notifications'] ?? []);
+                  final data =
+                      snapshot.data!.data() as Map<String, dynamic>? ?? {};
+                  final notifs = List<Map<String, dynamic>>.from(
+                    data['notifications'] ?? [],
+                  );
                   unreadCount = notifs.where((n) => n['seen'] == false).length;
                 }
 

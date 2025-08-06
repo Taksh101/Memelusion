@@ -107,10 +107,10 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       });
 
-    // Navigate to auth after 6 seconds
-    Future.delayed(const Duration(milliseconds: 6000), () {
+    // Navigate to auth after 3 seconds
+    Future.delayed(const Duration(milliseconds: 3000), () {
       if (mounted) {
-        print('🚀 Navigating to /auth after 6 seconds');
+        print('🚀 Navigating to /auth after 3 seconds');
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/auth',
@@ -122,17 +122,21 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print('🖼️ Building SplashScreen, initialized: $_isInitialized, hasError: $_hasError');
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.white,
       body: Center(
         child: _hasError
             ? const Text(
                 'Failed to load splash video',
-                style: TextStyle(color: Colors.white70, fontSize: 18),
+                style: TextStyle(color: Colors.black87, fontSize: 18),
               )
             : _isInitialized
-                ? VideoPlayer(_controller)
+                ? Center(
+                    child: AspectRatio(
+                      aspectRatio: _controller.value.aspectRatio,
+                      child: VideoPlayer(_controller),
+                    ),
+                  )
                 : const CircularProgressIndicator(color: Colors.greenAccent),
       ),
     );
