@@ -18,9 +18,12 @@ dependencies:
 
   # ✅ Firebase Authentication
   firebase_auth: ^4.17.4
+  animated_splash_screen: any
 
   # ✅ Firestore for Database
   cloud_firestore: ^4.15.4
+  image_picker: ^1.0.4
+  image_picker_for_web: ^3.0.1
 
 
   # ✅ State management if needed (optional)
@@ -28,6 +31,8 @@ dependencies:
   http: ^1.2.1
   firebase_storage: ^11.7.1
   uuid: ^4.3.3
+  intl: ^0.20.2
+  connectivity_plus: ^6.0.5
 
 
 dev_dependencies:
@@ -41,4 +46,5 @@ flutter:
   # Uncomment and add asset paths if you use local images/fonts
   assets:
     - assets/img/background.jpg
+    - assets/img/default_profile.png
   #   - assets/memes/

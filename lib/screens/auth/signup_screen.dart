@@ -67,6 +67,11 @@ class _SignupPageState extends State<SignupPage> {
             'email': _emailController.text.trim(),
             'uid': cred.user!.uid,
             'profilePic': '',
+            'profilePicDelete': '',
+            'sharedMemesCount': 0,
+            'likedMemesCount': 0,
+            'isAdmin': false,
+            'savedMemes': [],
             'friends': [],
             'friendRequests': [],
             'createdAt': Timestamp.now(),
@@ -127,7 +132,8 @@ class _SignupPageState extends State<SignupPage> {
     } else if (!RegExp(
       r'^[a-zA-Z0-9_]{3,20}$',
     ).hasMatch(_usernameController.text)) {
-      _usernameError = "3-20 chars, letters/numbers/_";
+      _usernameError =
+          "Username should only contain letters, numbers, and underscores (3-20 characters)";
       isValid = false;
     }
 

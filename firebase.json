@@ -1,1 +1,26 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"memelusion-9303b","appId":"1:562977872383:android:5243a32c4b0bcf1a54efca","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"memelusion-9303b","configurations":{"android":"1:562977872383:android:5243a32c4b0bcf1a54efca","ios":"1:562977872383:ios:73dab05618d10c3b54efca","web":"1:562977872383:web:0229520ec5e4270154efca"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "memelusion-9303b",
+          "appId": "1:562977872383:android:5243a32c4b0bcf1a54efca",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "memelusion-9303b",
+          "configurations": {
+            "android": "1:562977872383:android:5243a32c4b0bcf1a54efca",
+            "ios": "1:562977872383:ios:73dab05618d10c3b54efca",
+            "web": "1:562977872383:web:0229520ec5e4270154efca"
+          }
+        }
+      }
+    }
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}
