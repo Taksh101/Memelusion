@@ -1,6 +1,6 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:memelusion/screens/widget_utils.dart';
+import 'package:memelusion/services/login_service.dart';
 import 'dart:ui';
 
 class LoginPage extends StatefulWidget {
@@ -9,128 +9,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
-
-  String? _usernameError;
-  String? _passwordError;
-
-  bool _passwordVisible = false;
-  bool _isAdminLogin = false;
-  bool _isLoggingIn = false; // New state for login spinner
-
-  Future<void> _loginUser() async {
-    try {
-      print("🔍 Fetching user by username: ${_usernameController.text.trim()}");
-
-      final snapshot =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .where('username', isEqualTo: _usernameController.text.trim())
-              .get();
-
-      print("📄 Documents found: ${snapshot.docs.length}");
-
-      if (snapshot.docs.isEmpty) {
-        if (!mounted) return;
-        setState(() {
-          _usernameError =
-              _isAdminLogin ? "Invalid admin username" : "Invalid username";
-          _passwordError = null;
-        });
-        return;
-      }
-
-      final userData = snapshot.docs.first.data();
-      final email = userData['email'];
-      final isAdmin = userData['isAdmin'] ?? false;
-
-      if (_isAdminLogin && !isAdmin) {
-        setState(() {
-          _usernameError = "Not an admin account";
-          _passwordError = null;
-        });
-        return;
-      }
-
-      // New check: Block admin login if checkbox is unchecked
-      if (isAdmin && !_isAdminLogin) {
-        setState(() {
-          _usernameError = "Check 'Login as admin' for admin accounts";
-          _passwordError = null;
-        });
-        return;
-      }
-
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: _passwordController.text.trim(),
-      );
-
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(
-        context,
-        _isAdminLogin ? '/admin' : '/home',
-      );
-    } on FirebaseAuthException catch (e) {
-      print("❌ FirebaseAuthException: ${e.code}");
-
-      if (!mounted) return;
-      setState(() {
-        _usernameError = null;
-        _passwordError = null;
-
-        if (e.code == 'wrong-password') {
-          _passwordError =
-              _isAdminLogin ? "Invalid admin password" : "Invalid password";
-        } else if (e.code == 'user-not-found') {
-          _usernameError =
-              _isAdminLogin ? "Invalid admin username" : "Invalid username";
-        } else if (e.code == 'invalid-credential') {
-          _passwordError =
-              _isAdminLogin ? "Invalid admin password" : "Invalid password";
-        } else {
-          _passwordError = "Something went wrong";
-        }
-      });
-    } catch (e) {
-      print("❗Unexpected error: $e");
-
-      if (!mounted) return;
-      setState(() {
-        _usernameError = null;
-        _passwordError = "Something went wrong";
-      });
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
-    }
-  }
-
-  void _validateFields() {
-    setState(() {
-      _usernameError = null;
-      _passwordError = null;
-
-      if (_usernameController.text.isEmpty) {
-        _usernameError = "Enter username";
-      }
-      if (_passwordController.text.isEmpty) {
-        _passwordError = "Enter password";
-      }
-    });
-
-    if (_usernameError == null && _passwordError == null && !_isLoggingIn) {
-      setState(() => _isLoggingIn = true); // Start spinner
-      _loginUser().then((_) {
-        if (mounted) {
-          setState(() => _isLoggingIn = false); // Stop spinner
-        }
-      });
-    }
-  }
-
+  LoginServiceState _LoginService = LoginServiceState();
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -165,41 +44,42 @@ class _LoginPageState extends State<LoginPage> {
                   SizedBox(height: 40),
                   Column(
                     children: [
-                      _buildTextField(
-                        controller: _usernameController,
+                      buildTextField(
+                        controller: _LoginService.usernameController,
                         hint: "Username",
                         icon: Icons.person,
-                        errorText: _usernameError,
+                        errorText: _LoginService.usernameError,
                       ),
                       SizedBox(height: 20),
-                      _buildTextField(
-                        controller: _passwordController,
+                      buildTextField(
+                        controller: _LoginService.passwordController,
                         hint: "Password",
                         icon: Icons.lock,
-                        obscureText: !_passwordVisible,
+                        obscureText: !_LoginService.passwordVisible,
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _passwordVisible
+                            _LoginService.passwordVisible
                                 ? Icons.visibility
                                 : Icons.visibility_off,
                             color: Colors.greenAccent,
                           ),
                           onPressed: () {
                             setState(() {
-                              _passwordVisible = !_passwordVisible;
+                              _LoginService.passwordVisible =
+                                  !_LoginService.passwordVisible;
                             });
                           },
                         ),
-                        errorText: _passwordError,
+                        errorText: _LoginService.passwordError,
                       ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
                           Checkbox(
-                            value: _isAdminLogin,
+                            value: _LoginService.isAdminLogin,
                             onChanged: (val) {
                               setState(() {
-                                _isAdminLogin = val ?? false;
+                                _LoginService.isAdminLogin = val ?? false;
                               });
                             },
                             activeColor: Colors.greenAccent,
@@ -215,7 +95,10 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 20),
                       ElevatedButton(
-                        onPressed: _isLoggingIn ? null : _validateFields,
+                        onPressed:
+                            _LoginService.isLoggingIn
+                                ? null
+                                : _LoginService.validateFields,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.greenAccent,
                           shape: RoundedRectangleBorder(
@@ -227,7 +110,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         child:
-                            _isLoggingIn
+                            _LoginService.isLoggingIn
                                 ? const SizedBox(
                                   width: 24,
                                   height: 24,
@@ -276,48 +159,6 @@ class _LoginPageState extends State<LoginPage> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    bool obscureText = false,
-    Widget? suffixIcon,
-    String? errorText,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.grey.withOpacity(0.5),
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: Colors.greenAccent, width: 2),
-          ),
-          child: TextField(
-            controller: controller,
-            obscureText: obscureText,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              prefixIcon: Icon(icon, color: Colors.greenAccent),
-              suffixIcon: suffixIcon,
-              hintText: hint,
-              hintStyle: const TextStyle(color: Colors.white),
-              border: InputBorder.none,
-            ),
-          ),
-        ),
-        if (errorText != null)
-          Padding(
-            padding: const EdgeInsets.only(left: 16, top: 4),
-            child: Text(
-              errorText,
-              style: const TextStyle(color: Colors.redAccent, fontSize: 13),
-            ),
-          ),
-      ],
     );
   }
 }

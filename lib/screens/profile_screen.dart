@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:memelusion/screens/utils.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -115,6 +116,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ).showSnackBar(SnackBar(content: Text("Upload failed: $e")));
     }
   }
+
   Future<void> _fetchSavedMemes() async {
     final uid = currentUser?.uid;
     if (uid == null) return;
@@ -597,106 +599,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void showFullScreenImageDialog(BuildContext context, String imageUrl) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => GestureDetector(
-            onTap: () => Navigator.of(context).pop(), // Tap outside to close
-            child: Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.all(16), // Increased from 10
-              child: Stack(
-                children: [
-                  // Blur background
-                  Positioned.fill(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                      child: Container(
-                        color: Colors.black.withOpacity(
-                          0.7,
-                        ), // Semi-transparent black
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: GestureDetector(
-                      onTap:
-                          () =>
-                              Navigator.of(context).pop(), // Tap image to close
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Hero(
-                          tag: imageUrl,
-                          child: InteractiveViewer(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                imageUrl,
-                                fit: BoxFit.contain,
-                                loadingBuilder: (
-                                  context,
-                                  child,
-                                  loadingProgress,
-                                ) {
-                                  if (loadingProgress == null) return child;
-                                  return const Center(
-                                    child: CircularProgressIndicator(
-                                      color:
-                                          Colors
-                                              .greenAccent, // Match app's accent
-                                    ),
-                                  );
-                                },
-                                errorBuilder:
-                                    (
-                                      context,
-                                      error,
-                                      stackTrace,
-                                    ) => const Center(
-                                      child: Icon(
-                                        Icons.error,
-                                        color:
-                                            Colors
-                                                .redAccent, // Match app's accent
-                                        size: 40,
-                                      ),
-                                    ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 5,
-                    right: 5,
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.close,
-                        color: Colors.redAccent, // Changed to redAccent
-                        size: 32, // Slightly larger
-                      ),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -804,14 +706,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 20),
-              Text(
-                _currentUsername ?? userData?['username'] ?? '',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
+          Text(
+            _currentUsername ?? userData?['username'] ?? '',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
           const SizedBox(height: 6),
 
           Text(

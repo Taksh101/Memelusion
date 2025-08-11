@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui';
 import 'package:intl/intl.dart';
+import 'package:memelusion/screens/utils.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'dart:convert';
 
@@ -123,89 +124,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void showFullScreenImageDialog(BuildContext context, String imageUrl) {
-  showDialog(
-    context: context,
-    builder: (context) => GestureDetector(
-      onTap: () => Navigator.of(context).pop(), // Tap outside to close
-      child: Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(16), // Increased from 10
-        child: Stack(
-          children: [
-            // Blur background
-            Positioned.fill(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                child: Container(
-                  color: Colors.black.withOpacity(0.7), // Semi-transparent black
-                ),
-              ),
-            ),
-            Center(
-              child: GestureDetector(
-                onTap: () => Navigator.of(context).pop(), // Tap image to close
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Hero(
-                    tag: imageUrl,
-                    child: InteractiveViewer(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          imageUrl,
-                          fit: BoxFit.contain,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return const Center(
-                              child: CircularProgressIndicator(
-                                color: Colors.greenAccent, // Match app's accent
-                              ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Center(
-                            child: Icon(
-                              Icons.error,
-                              color: Colors.redAccent, // Match app's accent
-                              size: 40,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 5,
-              right: 5,
-              child: IconButton(
-                icon: const Icon(
-                  Icons.close,
-                  color: Colors.redAccent, // Changed to redAccent
-                  size: 32, // Slightly larger
-                ),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
   void _filterFriends(String query) {
     setState(() {
       if (query.isEmpty) {
@@ -273,201 +191,205 @@ class _ChatScreenState extends State<ChatScreen> {
         : '${username2}_${username1}';
   }
 
-  Future<void> _sendMessage(String messageText, {String? memeUrl, int? currentMessageCount}) async {
-  if (selectedFriend == null || _currentUserUsername == null) return;
-  final senderUid = _auth.currentUser?.uid;
-  if (senderUid == null) return;
-  final chatId = _getChatId(_currentUserUsername!, selectedFriend!);
+  Future<void> _sendMessage(
+    String messageText, {
+    String? memeUrl,
+    int? currentMessageCount,
+  }) async {
+    if (selectedFriend == null || _currentUserUsername == null) return;
+    final senderUid = _auth.currentUser?.uid;
+    if (senderUid == null) return;
+    final chatId = _getChatId(_currentUserUsername!, selectedFriend!);
 
-  // Validate message word count
-  final words = messageText.trim().split(RegExp(r'\s+')).length;
-  if (messageText.isNotEmpty && words > 100) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Message exceeds 100 words',
-          style: TextStyle(fontFamily: 'Inter'),
-        ),
-      ),
-    );
-    return;
-  }
-
-  // Encode the message text if it exists
-  String? encodedText;
-  if (messageText.isNotEmpty) {
-    encodedText = base64Encode(utf8.encode(messageText));
-  }
-
-  final messageData = {
-    'senderUid': senderUid,
-    'text': encodedText, // Store base64-encoded text
-    'memeUrl': memeUrl,
-    'timestamp': FieldValue.serverTimestamp(),
-    'expiresAt': Timestamp.fromDate(
-      DateTime.now().add(const Duration(hours: 24)),
-    ),
-  };
-
-  try {
-    await _firestore.collection('chats').doc(chatId).set({
-      'lastUpdated': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-    final messageRef = await _firestore
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .add(messageData);
-    _textController.clear();
-    setState(() {
-      _lastMessageCount++; // Increment for new message
-    });
-
-    // Scroll to the bottom after the new message is added
-    if (_itemScrollController.isAttached) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _itemScrollController.scrollTo(
-          index: _lastMessageCount, // Scroll to the new message
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      });
-    }
-
-    // Add notification to recipient
-    final recipientUsername = selectedFriend!;
-    final recipientQuery =
-        await _firestore
-            .collection('users')
-            .where('username', isEqualTo: recipientUsername)
-            .limit(1)
-            .get();
-    if (recipientQuery.docs.isNotEmpty) {
-      final recipientDoc = recipientQuery.docs.first;
-      final now = DateTime.now();
-      await _firestore.collection('users').doc(recipientDoc['uid']).update({
-        'notifications': FieldValue.arrayUnion([
-          {
-            'from': _currentUserUsername!,
-            'seen': false,
-            'timestamp': Timestamp.fromDate(now),
-            'type': 'message',
-          },
-        ]),
-      });
-    }
-  } catch (e) {
-    if (mounted) {
+    // Validate message word count
+    final words = messageText.trim().split(RegExp(r'\s+')).length;
+    if (messageText.isNotEmpty && words > 100) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text(
-            'Failed to send message: $e',
-            style: const TextStyle(fontFamily: 'Inter'),
+            'Message exceeds 100 words',
+            style: TextStyle(fontFamily: 'Inter'),
           ),
         ),
       );
+      return;
+    }
+
+    // Encode the message text if it exists
+    String? encodedText;
+    if (messageText.isNotEmpty) {
+      encodedText = base64Encode(utf8.encode(messageText));
+    }
+
+    final messageData = {
+      'senderUid': senderUid,
+      'text': encodedText, // Store base64-encoded text
+      'memeUrl': memeUrl,
+      'timestamp': FieldValue.serverTimestamp(),
+      'expiresAt': Timestamp.fromDate(
+        DateTime.now().add(const Duration(hours: 24)),
+      ),
+    };
+
+    try {
+      await _firestore.collection('chats').doc(chatId).set({
+        'lastUpdated': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      final messageRef = await _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .add(messageData);
+      _textController.clear();
+      setState(() {
+        _lastMessageCount++; // Increment for new message
+      });
+
+      // Scroll to the bottom after the new message is added
+      if (_itemScrollController.isAttached) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _itemScrollController.scrollTo(
+            index: _lastMessageCount, // Scroll to the new message
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        });
+      }
+
+      // Add notification to recipient
+      final recipientUsername = selectedFriend!;
+      final recipientQuery =
+          await _firestore
+              .collection('users')
+              .where('username', isEqualTo: recipientUsername)
+              .limit(1)
+              .get();
+      if (recipientQuery.docs.isNotEmpty) {
+        final recipientDoc = recipientQuery.docs.first;
+        final now = DateTime.now();
+        await _firestore.collection('users').doc(recipientDoc['uid']).update({
+          'notifications': FieldValue.arrayUnion([
+            {
+              'from': _currentUserUsername!,
+              'seen': false,
+              'timestamp': Timestamp.fromDate(now),
+              'type': 'message',
+            },
+          ]),
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to send message: $e',
+              style: const TextStyle(fontFamily: 'Inter'),
+            ),
+          ),
+        );
+      }
     }
   }
-}
 
   Widget _buildMessageTile(DocumentSnapshot message) {
-  final data = message.data() as Map<String, dynamic>? ?? {};
-  final isMe = data['senderUid'] == _auth.currentUser?.uid;
-  final timestamp =
-      (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
-  final expiresAt =
-      (data['expiresAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-  final isMeme =
-      data['memeUrl'] != null && data['memeUrl'].toString().isNotEmpty;
-  if (expiresAt.isBefore(DateTime.now())) return const SizedBox.shrink();
+    final data = message.data() as Map<String, dynamic>? ?? {};
+    final isMe = data['senderUid'] == _auth.currentUser?.uid;
+    final timestamp =
+        (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
+    final expiresAt =
+        (data['expiresAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+    final isMeme =
+        data['memeUrl'] != null && data['memeUrl'].toString().isNotEmpty;
+    if (expiresAt.isBefore(DateTime.now())) return const SizedBox.shrink();
 
-  // Decode the message text if it exists, handle unencoded messages
-  String displayText = '';
-  if (data['text'] != null && data['text'].toString().isNotEmpty) {
-    try {
-      // Check if the text is valid base64
-      base64Decode(data['text'] as String);
-      displayText = utf8.decode(base64Decode(data['text'] as String));
-    } catch (e) {
-      // If not valid base64, assume it's plain text (existing messages)
-      displayText = data['text'] as String;
+    // Decode the message text if it exists, handle unencoded messages
+    String displayText = '';
+    if (data['text'] != null && data['text'].toString().isNotEmpty) {
+      try {
+        // Check if the text is valid base64
+        base64Decode(data['text'] as String);
+        displayText = utf8.decode(base64Decode(data['text'] as String));
+      } catch (e) {
+        // If not valid base64, assume it's plain text (existing messages)
+        displayText = data['text'] as String;
+      }
     }
-  }
 
-  final formattedTime = DateFormat('h:mm a').format(timestamp);
+    final formattedTime = DateFormat('h:mm a').format(timestamp);
 
-  return Align(
-    alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-    child: GestureDetector(
-      onLongPress:
-          !isMeme && displayText.isNotEmpty
-              ? () => _showCopyMenu(context, displayText)
-              : null,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
-        decoration: BoxDecoration(
-          color:
-              isMe
-                  ? const Color.fromARGB(255, 109, 232, 100)
-                  : Colors.grey[850],
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          crossAxisAlignment:
-              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            if (isMeme)
-              GestureDetector(
-                onTap:
-                    () => showFullScreenImageDialog(
-                      context,
-                      data['memeUrl'] as String,
-                    ),
-                child: Image.network(
-                  data['memeUrl'] as String,
-                  width: 200,
-                  height: 200,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Text(
-                      'Failed to load meme',
-                      style: TextStyle(
-                        color: Colors.redAccent,
-                        fontFamily: 'Inter',
-                        fontSize: 16,
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: GestureDetector(
+        onLongPress:
+            !isMeme && displayText.isNotEmpty
+                ? () => _showCopyMenu(context, displayText)
+                : null,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.75,
+          ),
+          decoration: BoxDecoration(
+            color:
+                isMe
+                    ? const Color.fromARGB(255, 109, 232, 100)
+                    : Colors.grey[850],
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment:
+                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              if (isMeme)
+                GestureDetector(
+                  onTap:
+                      () => showFullScreenImageDialog(
+                        context,
+                        data['memeUrl'] as String,
                       ),
-                    );
-                  },
+                  child: Image.network(
+                    data['memeUrl'] as String,
+                    width: 200,
+                    height: 200,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Text(
+                        'Failed to load meme',
+                        style: TextStyle(
+                          color: Colors.redAccent,
+                          fontFamily: 'Inter',
+                          fontSize: 16,
+                        ),
+                      );
+                    },
+                  ),
+                )
+              else
+                Text(
+                  displayText,
+                  style: TextStyle(
+                    color: isMe ? Colors.black : Colors.white,
+                    fontFamily: 'Inter',
+                    fontSize: 16,
+                  ),
                 ),
-              )
-            else
+              const SizedBox(height: 4),
               Text(
-                displayText,
+                formattedTime,
                 style: TextStyle(
-                  color: isMe ? Colors.black : Colors.white,
+                  color: isMe ? Colors.black54 : Colors.white54,
                   fontFamily: 'Inter',
-                  fontSize: 16,
+                  fontSize: 12,
                 ),
               ),
-            const SizedBox(height: 4),
-            Text(
-              formattedTime,
-              style: TextStyle(
-                color: isMe ? Colors.black54 : Colors.white54,
-                fontFamily: 'Inter',
-                fontSize: 12,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   void _showCopyMenu(BuildContext context, String messageText) {
     showModalBottomSheet(
@@ -670,11 +592,16 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                       );
                     }
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty || snapshot.data!.docs.every((doc) {
-  final data = doc.data() as Map<String, dynamic>? ?? {};
-  final expiresAt = (data['expiresAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-  return expiresAt.isBefore(DateTime.now());
-})) {
+                    if (!snapshot.hasData ||
+                        snapshot.data!.docs.isEmpty ||
+                        snapshot.data!.docs.every((doc) {
+                          final data =
+                              doc.data() as Map<String, dynamic>? ?? {};
+                          final expiresAt =
+                              (data['expiresAt'] as Timestamp?)?.toDate() ??
+                              DateTime.now();
+                          return expiresAt.isBefore(DateTime.now());
+                        })) {
                       _isInitialChatLoad =
                           false; // No messages, no need for initial scroll
                       return const Center(
@@ -707,9 +634,12 @@ class _ChatScreenState extends State<ChatScreen> {
                         Expanded(
                           child: ScrollablePositionedList.builder(
                             itemScrollController: _itemScrollController,
-                            initialScrollIndex: messages.length > 0 ? messages.length - 1 : 0,
+                            initialScrollIndex:
+                                messages.length > 0 ? messages.length - 1 : 0,
                             itemCount: messages.length,
-                            itemBuilder: (context, index) => _buildMessageTile(messages[index]),
+                            itemBuilder:
+                                (context, index) =>
+                                    _buildMessageTile(messages[index]),
                             padding: const EdgeInsets.symmetric(vertical: 8),
                           ),
                         ),
@@ -721,68 +651,74 @@ class _ChatScreenState extends State<ChatScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 child: StatefulBuilder(
-                  builder: (context, setInputState) => Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _textController,
-                          focusNode: _textFocusNode,
-                          keyboardType: TextInputType.text,
-                          textInputAction: TextInputAction.done,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontFamily: 'Inter',
+                  builder:
+                      (context, setInputState) => Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _textController,
+                              focusNode: _textFocusNode,
+                              keyboardType: TextInputType.text,
+                              textInputAction: TextInputAction.done,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontFamily: 'Inter',
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Type a message...',
+                                hintStyle: const TextStyle(
+                                  color: Colors.white70,
+                                  fontFamily: 'Inter',
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[850],
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide.none,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                  horizontal: 16,
+                                ),
+                              ),
+                              onTap: () {
+                                setInputState(() {
+                                  _textFocusNode.requestFocus();
+                                });
+                              },
+                              onTapOutside: (event) {
+                                setInputState(() {
+                                  _textFocusNode.requestFocus();
+                                });
+                              },
+                            ),
                           ),
-                          decoration: InputDecoration(
-                            hintText: 'Type a message...',
-                            hintStyle: const TextStyle(
-                              color: Colors.white70,
-                              fontFamily: 'Inter',
-                            ),
-                            filled: true,
-                            fillColor: Colors.grey[850],
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 12,
-                              horizontal: 16,
-                            ),
+                          const SizedBox(width: 8),
+                          ValueListenableBuilder<bool>(
+                            valueListenable: _textNotifier,
+                            builder: (context, hasText, child) {
+                              return IconButton(
+                                icon: Icon(
+                                  Icons.send,
+                                  color:
+                                      hasText
+                                          ? Colors.greenAccent[400]
+                                          : Colors.grey,
+                                  size: 28,
+                                ),
+                                onPressed:
+                                    hasText
+                                        ? () => _sendMessage(
+                                          _textController.text,
+                                          currentMessageCount:
+                                              _lastMessageCount,
+                                        )
+                                        : null,
+                              );
+                            },
                           ),
-                          onTap: () {
-                            setInputState(() {
-                              _textFocusNode.requestFocus();
-                            });
-                          },
-                          onTapOutside: (event) {
-                            setInputState(() {
-                              _textFocusNode.requestFocus();
-                            });
-                          },
-                        ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      ValueListenableBuilder<bool>(
-                        valueListenable: _textNotifier,
-                        builder: (context, hasText, child) {
-                          return IconButton(
-                            icon: Icon(
-                              Icons.send,
-                              color: hasText ? Colors.greenAccent[400] : Colors.grey,
-                              size: 28,
-                            ),
-                            onPressed: hasText
-                                ? () => _sendMessage(
-                                      _textController.text,
-                                      currentMessageCount: _lastMessageCount,
-                                    )
-                                : null,
-                          );
-                        },
-                      ),
-                    ],
-                  ),
                 ),
               ),
             ],

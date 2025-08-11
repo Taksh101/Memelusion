@@ -6,8 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
-import 'package:memelusion/screens/utils.dart' as utils;
-
+import 'package:memelusion/screens/utils.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AdminPanel extends StatefulWidget {
@@ -125,106 +124,6 @@ class _AdminPanelState extends State<AdminPanel> {
     }
   }
 
-  void showFullScreenImageDialog(BuildContext context, String imageUrl) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => GestureDetector(
-            onTap: () => Navigator.of(context).pop(), // Tap outside to close
-            child: Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.all(16), // Increased from 10
-              child: Stack(
-                children: [
-                  // Blur background
-                  Positioned.fill(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                      child: Container(
-                        color: Colors.black.withOpacity(
-                          0.7,
-                        ), // Semi-transparent black
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: GestureDetector(
-                      onTap:
-                          () =>
-                              Navigator.of(context).pop(), // Tap image to close
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Hero(
-                          tag: imageUrl,
-                          child: InteractiveViewer(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                imageUrl,
-                                fit: BoxFit.contain,
-                                loadingBuilder: (
-                                  context,
-                                  child,
-                                  loadingProgress,
-                                ) {
-                                  if (loadingProgress == null) return child;
-                                  return const Center(
-                                    child: CircularProgressIndicator(
-                                      color:
-                                          Colors
-                                              .greenAccent, // Match app's accent
-                                    ),
-                                  );
-                                },
-                                errorBuilder:
-                                    (
-                                      context,
-                                      error,
-                                      stackTrace,
-                                    ) => const Center(
-                                      child: Icon(
-                                        Icons.error,
-                                        color:
-                                            Colors
-                                                .redAccent, // Match app's accent
-                                        size: 40,
-                                      ),
-                                    ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 5,
-                    right: 5,
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.close,
-                        color: Colors.redAccent, // Changed to redAccent
-                        size: 32, // Slightly larger
-                      ),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-    );
-  }
-
   Future<void> _deleteUser(String userId) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -321,7 +220,7 @@ class _AdminPanelState extends State<AdminPanel> {
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      onWillPop: () async => await utils.showExitConfirmationDialog(context),
+      onWillPop: () async => await showExitConfirmationDialog(context),
       child: Scaffold(
         appBar: AppBar(
           title: const Text("Admin Panel"),
