@@ -2,8 +2,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:ui';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
+  final VoidCallback? onLoginSuccess; // Callback for after login
+  const LoginPage({Key? key, this.onLoginSuccess}) : super(key: key);
+
   @override
   _LoginPageState createState() => _LoginPageState();
 }
@@ -53,7 +57,6 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // New check: Block admin login if checkbox is unchecked
       if (isAdmin && !_isAdminLogin) {
         setState(() {
           _usernameError = "Check 'Login as admin' for admin accounts";
@@ -67,11 +70,27 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text.trim(),
       );
 
+      // ✅ After successful login, check tutorial flag
+      final prefs = await SharedPreferences.getInstance();
+      final hasSeenTutorial = prefs.getBool('hasSeenGestureTutorial') ?? false;
+
       if (!mounted) return;
-      Navigator.pushReplacementNamed(
-        context,
-        _isAdminLogin ? '/admin' : '/home',
-      );
+
+      if (!hasSeenTutorial) {
+        print("🎯 First launch detected – showing Gesture Tutorial");
+        await prefs.setBool('hasSeenGestureTutorial', true);
+        Navigator.pushReplacementNamed(context, '/gestureTutorial');
+      } else {
+        if (widget.onLoginSuccess != null) {
+          widget.onLoginSuccess!();
+          return;
+        }
+        print("✅ Tutorial already seen – going to normal screen");
+        Navigator.pushReplacementNamed(
+          context,
+          _isAdminLogin ? '/admin' : '/home',
+        );
+      }
     } on FirebaseAuthException catch (e) {
       print("❌ FirebaseAuthException: ${e.code}");
 

@@ -37,6 +37,9 @@ dependencies:
   video_player: ^2.10.0
   google_fonts: any
   fl_chart: any
+  shared_preferences: ^2.5.3
+  flutter_offline: ^5.0.0
+  lottie: ^3.3.1
 
 
 dev_dependencies:
@@ -54,4 +57,9 @@ flutter:
     - assets/img/logo.png
     - assets/img/default_profile.png
     - assets/splashscreen.mp4
+    - assets/animations/gestures/chat.json
+    - assets/animations/gestures/longpress.json
+    - assets/animations/gestures/share.json
+    - assets/animations/gestures/swipe.json
+    - assets/animations/gestures/swipe_left.json
   #   - assets/memes/
