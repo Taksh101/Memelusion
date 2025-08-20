@@ -57,4 +57,9 @@ flutter:
     - assets/img/logo.png
     - assets/img/default_profile.png
     - assets/splashscreen.mp4
+    - assets/animations/gestures/chat.json
+    - assets/animations/gestures/longpress.json
+    - assets/animations/gestures/share.json
+    - assets/animations/gestures/swipe.json
+    - assets/animations/gestures/swipe_left.json
   #   - assets/memes/

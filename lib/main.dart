@@ -5,7 +5,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:memelusion/screens/auth/signup_screen.dart';
 import 'package:memelusion/screens/auth/login_screen.dart';
-import 'package:memelusion/screens/gesture_detector.dart';
 import 'package:memelusion/screens/home_screen.dart';
 import 'package:memelusion/screens/admin_panel.dart';
 import 'package:memelusion/screens/notifications_screen.dart';
@@ -13,22 +12,21 @@ import 'package:memelusion/screens/profile_screen.dart';
 import 'package:memelusion/screens/chat_screen.dart';
 import 'package:memelusion/screens/settings_screen.dart';
 import 'package:memelusion/screens/offline_screen.dart';
+import 'package:video_player/video_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:memelusion/screens/gesture_detector.dart';
 import 'firebase_options.dart';
-import 'package:flutter_offline/flutter_offline.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  final prefs = await SharedPreferences.getInstance(); // ⬅ Added
-  final isFirstLaunch = prefs.getBool('isFirstLaunch') ?? true; // ⬅ Added
-
+  final prefs = await SharedPreferences.getInstance();
+  final isFirstLaunch = prefs.getBool('isFirstLaunch') ?? true;
   if (isFirstLaunch) {
-    // ⬅ Added
-    await prefs.setBool('isFirstLaunch', false); // ⬅ Added
-    await prefs.remove('hasSeenGestures'); // ⬅ Added
-    print("First launch detected – gesture tutorial will be shown."); // ⬅ Added
+    await prefs.setBool('isFirstLaunch', false);
+    await prefs.remove('hasSeenGestures');
+    print("First launch detected – gesture tutorial will be shown.");
   }
 
   runApp(const MyApp());
@@ -61,9 +59,10 @@ class MyApp extends StatelessWidget {
         ),
         iconTheme: const IconThemeData(color: Colors.white70),
       ),
-      initialRoute: '/',
+      initialRoute: '/splash',
       routes: {
-        '/': (context) => const AuthWrapper(),
+        '/splash': (context) => const SplashScreen(),
+        '/auth': (context) => const AuthWrapper(),
         '/signup': (context) => SignupPage(),
         '/login': (context) => LoginPage(),
         '/home': (context) => HomePage(),
@@ -83,6 +82,93 @@ class MyApp extends StatelessWidget {
   }
 }
 
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  late VideoPlayerController _controller;
+  bool _hasError = false;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    print('🎥 Initializing SplashScreen video');
+    _controller = VideoPlayerController.asset('assets/splashscreen.mp4')
+      ..initialize()
+          .then((_) {
+            if (mounted) {
+              print('✅ Video initialized successfully');
+              setState(() {
+                _isInitialized = true;
+              });
+              _controller.setLooping(false); // Play once
+              _controller
+                  .play()
+                  .then((_) {
+                    print('▶️ Video playback started');
+                  })
+                  .catchError((error) {
+                    print('❌ Error playing video: $error');
+                    setState(() {
+                      _hasError = true;
+                    });
+                  });
+            }
+          })
+          .catchError((error) {
+            print('❌ Error initializing video: $error');
+            if (mounted) {
+              setState(() {
+                _hasError = true;
+              });
+            }
+          });
+
+    // Navigate to auth after 3 seconds
+    Future.delayed(const Duration(milliseconds: 3000), () {
+      if (mounted) {
+        print('🚀 Navigating to /auth after 3 seconds');
+        Navigator.pushNamedAndRemoveUntil(context, '/auth', (route) => false);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child:
+            _hasError
+                ? const Text(
+                  'Failed to load splash video',
+                  style: TextStyle(color: Colors.black87, fontSize: 18),
+                )
+                : _isInitialized
+                ? Center(
+                  child: AspectRatio(
+                    aspectRatio: _controller.value.aspectRatio,
+                    child: VideoPlayer(_controller),
+                  ),
+                )
+                : const CircularProgressIndicator(color: Colors.greenAccent),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    print('🗑️ Disposing VideoPlayerController');
+    _controller.dispose();
+    super.dispose();
+  }
+}
+
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
@@ -92,7 +178,6 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _isOnline = true;
-  bool _isLoading = true;
   bool _showTutorial = false;
   bool _showLogin = false;
 
@@ -106,7 +191,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
     await _checkConnectivity();
 
     if (!_isOnline) {
-      setState(() => _isLoading = false);
       return;
     }
 
@@ -116,7 +200,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
     if (user == null) {
       setState(() {
         _showLogin = true;
-        _isLoading = false;
       });
       return;
     }
@@ -131,17 +214,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
       await FirebaseAuth.instance.signOut();
       setState(() {
         _showLogin = true;
-        _isLoading = false;
       });
       return;
     }
 
-    final userData = doc.data() as Map<String, dynamic>?;
+    final userData = doc.data();
     if (userData == null || userData['isAdmin'] == true) {
       await FirebaseAuth.instance.signOut();
       setState(() {
         _showLogin = true;
-        _isLoading = false;
       });
       return;
     }
@@ -153,11 +234,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
     if (!hasSeenTutorial) {
       setState(() {
         _showTutorial = true;
-        _isLoading = false;
-      });
-    } else {
-      setState(() {
-        _isLoading = false;
       });
     }
   }
@@ -179,9 +255,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const SplashScreen();
-    }
+    // ...existing code...
 
     if (!_isOnline) {
       return OfflineScreen(onRetry: _handleStartup);
@@ -192,7 +266,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
         onLoginSuccess: () async {
           // After login, run startup again so tutorial check happens now
           setState(() {
-            _isLoading = true;
             _showLogin = false;
           });
           await _handleStartup();
@@ -211,17 +284,5 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
 
     return HomePage();
-  }
-}
-
-class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(child: CircularProgressIndicator(color: Colors.greenAccent)),
-    );
   }
 }
