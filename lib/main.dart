@@ -219,19 +219,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
 
     final userData = doc.data();
+    // Admin check FIRST
     if (userData == null || userData['isAdmin'] == true) {
       await FirebaseAuth.instance.signOut();
       setState(() {
         _showLogin = true;
+        _showTutorial = false;
       });
-      return;
+      return; // Prevent any further logic from running
     }
 
-    // Step 3 — Check if tutorial should be shown
+    // Step 3 — Check if tutorial should be shown (only for non-admin)
     final prefs = await SharedPreferences.getInstance();
     final hasSeenTutorial = prefs.getBool('hasSeenGestures') ?? false;
-
-    if (!hasSeenTutorial) {
+    if (!hasSeenTutorial && userData['isAdmin'] != true) {
       setState(() {
         _showTutorial = true;
       });
@@ -255,12 +256,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    // ...existing code...
-
     if (!_isOnline) {
       return OfflineScreen(onRetry: _handleStartup);
     }
 
+    // Always prioritize login over tutorial
     if (_showLogin) {
       return LoginPage(
         onLoginSuccess: () async {

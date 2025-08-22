@@ -23,6 +23,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool showFriends = false;
   List<Map<String, dynamic>> savedMemes = [];
   List<Map<String, dynamic>> friendsList = [];
+  bool friendsLoading = false;
   String? _currentUsername; // Local state for instant UI updates
 
   @override
@@ -115,6 +116,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ).showSnackBar(SnackBar(content: Text("Upload failed: $e")));
     }
   }
+
   Future<void> _fetchSavedMemes() async {
     final uid = currentUser?.uid;
     if (uid == null) return;
@@ -200,9 +202,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _fetchFriends() async {
+    setState(() => friendsLoading = true);
     final uid = currentUser?.uid;
     if (uid == null) {
       print('❌ Current user is null');
+      setState(() => friendsLoading = false);
       return;
     }
 
@@ -212,7 +216,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (rawFriends.isEmpty) {
       print('📭 No friends to fetch.');
-      setState(() => friendsList = []);
+      setState(() {
+        friendsList = [];
+        friendsLoading = false;
+      });
       return;
     }
 
@@ -237,7 +244,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     print('✅ Final friendsList: ${list.length} items');
 
-    setState(() => friendsList = list);
+    setState(() {
+      friendsList = list;
+      friendsLoading = false;
+    });
   }
 
   Future<void> _unfriend(String friendUsername) async {
@@ -804,14 +814,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 20),
-              Text(
-                _currentUsername ?? userData?['username'] ?? '',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
+          Text(
+            _currentUsername ?? userData?['username'] ?? '',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
           const SizedBox(height: 6),
 
           Text(
@@ -822,7 +832,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // Friend count
           GestureDetector(
-            onTap: () => setState(() => showFriends = true),
+            onTap: () async {
+              setState(() {
+                friendsLoading = true;
+                showFriends = true;
+              });
+              await _fetchFriends();
+            },
             child: Text(
               "Friends: ${userData?['friends']?.length ?? 0}",
               style: const TextStyle(color: Colors.greenAccent, fontSize: 16),
@@ -1089,7 +1105,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: const TextStyle(color: Colors.white, fontSize: 16),
               ),
             ),
-            if (filteredFriends.isEmpty)
+            if (friendsLoading)
+              const Expanded(
+                child: Center(
+                  child: CircularProgressIndicator(color: Colors.greenAccent),
+                ),
+              )
+            else if (!friendsLoading && filteredFriends.isEmpty)
               const Expanded(
                 child: Center(
                   child: Text(

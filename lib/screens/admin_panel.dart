@@ -387,19 +387,33 @@ class _AdminPanelState extends State<AdminPanel> {
           children: [
             FutureBuilder<int>(
               future: _getCount('users'),
-              builder:
-                  (_, snap) => GestureDetector(
-                    onTap: () => setState(() => _showUserList = true),
-                    child: _buildStatCard("Users", snap.data! - 1),
-                  ),
+              builder: (_, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return _buildStatCard("Users", null);
+                }
+                if (snap.hasError || snap.data == null) {
+                  return _buildStatCard("Users", null);
+                }
+                return GestureDetector(
+                  onTap: () => setState(() => _showUserList = true),
+                  child: _buildStatCard("Users", snap.data! - 1),
+                );
+              },
             ),
             FutureBuilder<int>(
               future: _getCount('memes'),
-              builder:
-                  (_, snap) => GestureDetector(
-                    onTap: () => setState(() => _showMemeList = true),
-                    child: _buildStatCard("Memes", snap.data),
-                  ),
+              builder: (_, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return _buildStatCard("Memes", null);
+                }
+                if (snap.hasError || snap.data == null) {
+                  return _buildStatCard("Memes", null);
+                }
+                return GestureDetector(
+                  onTap: () => setState(() => _showMemeList = true),
+                  child: _buildStatCard("Memes", snap.data),
+                );
+              },
             ),
           ],
         ),
@@ -639,20 +653,27 @@ class _AdminPanelState extends State<AdminPanel> {
                         children: [
                           user['profilePic'] != null &&
                                   user['profilePic'].isNotEmpty
-                              ? ClipRRect(
-                                borderRadius: BorderRadius.circular(40),
-                                child: Image.network(
-                                  user['profilePic'],
-                                  height: 80,
-                                  width: 80,
-                                  fit: BoxFit.cover,
-                                  errorBuilder:
-                                      (context, error, stackTrace) =>
-                                          const Icon(
-                                            Icons.person,
-                                            size: 80,
-                                            color: Colors.white60,
-                                          ),
+                              ? GestureDetector(
+                                onTap:
+                                    () => showFullScreenImageDialog(
+                                      context,
+                                      user['profilePic'],
+                                    ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(40),
+                                  child: Image.network(
+                                    user['profilePic'],
+                                    height: 80,
+                                    width: 80,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const Icon(
+                                              Icons.person,
+                                              size: 80,
+                                              color: Colors.white60,
+                                            ),
+                                  ),
                                 ),
                               )
                               : const Icon(
