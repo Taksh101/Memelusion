@@ -1,33 +1,18 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
+// import 'package:firebase_core/firebase_core.dart'; // Removed unused import
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:memelusion/screens/utils.dart' as utils;
 import 'package:memelusion/services/meme_service.dart';
 
-class FakeDocumentSnapshot implements DocumentSnapshot {
-  @override
+class FakeDocumentSnapshot {
   dynamic operator [](Object key) => null;
-
-  @override
   bool get exists => false;
-
-  @override
   dynamic get(Object field) => null;
-
-  @override
   String get id => '';
-
-  @override
-  DocumentReference get reference => throw UnimplementedError();
-
-  @override
   Map<String, dynamic>? data() => {};
-
-  @override
-  SnapshotMetadata get metadata => throw UnimplementedError();
 }
 
 class LikeCountBadge extends StatefulWidget {
@@ -48,17 +33,31 @@ class LikeCountBadge extends StatefulWidget {
 
 class _LikeCountBadgeState extends State<LikeCountBadge> {
   late final Future<DocumentSnapshot> _future;
+  bool _useLocal = false;
+  List<String> _likedByLocal = const [];
 
   @override
   void initState() {
     super.initState();
     final memeId = widget.currentMeme?['id'];
-    _future =
-        memeId != null
-            ? FirebaseFirestore.instance.collection('memes').doc(memeId).get()
-            : Future.value(
-              FakeDocumentSnapshot(),
-            ); // Fix: Use FakeDocumentSnapshot
+    final likedBy = widget.currentMeme?['likedBy'];
+    if (likedBy is List) {
+      // If the buffer already provided likedBy, avoid an extra read.
+      _useLocal = true;
+      _likedByLocal = List<String>.from(likedBy);
+      // Use a dummy doc snapshot for the future
+      _future =
+          FirebaseFirestore.instance.collection('memes').doc('__dummy__').get();
+    } else {
+      _useLocal = false;
+      _future =
+          memeId != null
+              ? FirebaseFirestore.instance.collection('memes').doc(memeId).get()
+              : FirebaseFirestore.instance
+                  .collection('memes')
+                  .doc('__dummy__')
+                  .get();
+    }
   }
 
   @override
@@ -68,9 +67,20 @@ class _LikeCountBadgeState extends State<LikeCountBadge> {
     final memeId = widget.currentMeme?['id'];
 
     if (uid == null || memeId == null) {
-      print('❌ LikeCountBadge: uid=$uid, memeId=$memeId');
       return widget.badge(
-        Icon(Icons.favorite_border, size: 16, color: Colors.white70),
+        const Icon(Icons.favorite_border, size: 16, color: Colors.white70),
+        count,
+      );
+    }
+
+    if (_useLocal) {
+      final hasLiked = _likedByLocal.contains(uid);
+      return widget.badge(
+        Icon(
+          hasLiked ? Icons.favorite : Icons.favorite_border,
+          size: 16,
+          color: hasLiked ? Colors.redAccent[400] : Colors.white70,
+        ),
         count,
       );
     }
@@ -78,25 +88,23 @@ class _LikeCountBadgeState extends State<LikeCountBadge> {
     return FutureBuilder<DocumentSnapshot>(
       future: _future,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting ||
+            !snapshot.hasData ||
+            snapshot.data == null) {
           return widget.badge(
-            Icon(Icons.favorite_border, size: 16, color: Colors.white70),
+            const Icon(Icons.favorite_border, size: 16, color: Colors.white70),
             count,
           );
         }
         if (snapshot.hasError) {
-          print('❌ LikeCountBadge error: ${snapshot.error}');
           return widget.badge(
-            Icon(Icons.favorite_border, size: 16, color: Colors.white70),
+            const Icon(Icons.favorite_border, size: 16, color: Colors.white70),
             count,
           );
         }
 
         final likedBy = List<String>.from(snapshot.data?['likedBy'] ?? []);
         final hasLiked = likedBy.contains(uid);
-        print(
-          '🔍 LikeCountBadge: uid=$uid, memeId=$memeId, likedBy=$likedBy, hasLiked=$hasLiked',
-        );
 
         return widget.badge(
           Icon(
@@ -124,9 +132,6 @@ class ShareCountBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shareCount = currentMeme?['shareCount'] ?? 0;
-    print(
-      '🔍 ShareCountBadge: memeId=${currentMeme?['id']}, shareCount=$shareCount',
-    );
     return badge(
       Icon(Icons.share, size: 16, color: Colors.greenAccent[400]),
       shareCount,
@@ -140,8 +145,11 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
-  int _unreadNotifCount = 0;
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
+  static const int _bufferTarget = 7;
+  static const int _lowWatermark = 2;
+
+  // int _unreadNotifCount = 0; // Removed unused field
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
   final _memeService = MemeService();
@@ -151,36 +159,43 @@ class _HomePageState extends State<HomePage> {
   double _angle = 0;
   double _opacity = 1;
   bool _isLoading = true;
-  double? _aspectRatio;
 
   String? _feedbackEmoji;
   Set<String> selectedFriends = {};
   Set<String> selectedCategories = {};
   List<String> savedMemes = [];
 
+  // NEW: local buffer of upcoming memes
+  final List<Map<String, dynamic>> _buffer = [];
+  bool _isPrefetching = false;
+  int _prefetchToken = 0; // to cancel stale fills
+
   @override
   void initState() {
     super.initState();
     _loadSavedMemes();
-    _getRandomMeme();
+    _primeBuffer();
     _loadUnreadNotifications();
+  }
+
+  Future<void> _primeBuffer() async {
+    setState(() => _isLoading = true);
+    await _fillBuffer(clear: true);
+    _popNextMeme();
   }
 
   Future<void> _loadUnreadNotifications() async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
 
-    final snap =
-        await _firestore
-            .collection('users')
-            .doc(uid)
-            .collection('notifications')
-            .where('read', isEqualTo: false)
-            .get();
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .where('read', isEqualTo: false)
+        .get();
 
-    setState(() {
-      _unreadNotifCount = snap.docs.length;
-    });
+    // Removed assignment to deleted _unreadNotifCount
   }
 
   Future<void> _loadSavedMemes() async {
@@ -190,57 +205,126 @@ class _HomePageState extends State<HomePage> {
     savedMemes = List<String>.from(userSnap['savedMemes'] ?? []);
   }
 
-  Future<void> _getRandomMeme() async {
-    setState(() => _isLoading = true);
+  // NEW: fill/refresh buffer (category-aware)
+  Future<void> _fillBuffer({bool clear = false}) async {
+    if (_isPrefetching) return;
+    _isPrefetching = true;
+    final myToken = ++_prefetchToken;
 
-    final snapshot = await _firestore.collection('memes').get();
-    List<DocumentSnapshot> allMemes = snapshot.docs;
+    try {
+      if (clear) _buffer.clear();
 
-    if (selectedCategories.isNotEmpty) {
-      allMemes =
-          allMemes
-              .where((doc) => selectedCategories.contains(doc['category']))
-              .toList();
+      final need = _bufferTarget - _buffer.length;
+      if (need <= 0) return;
+
+      final cats = selectedCategories.toList();
+      final batch = await _memeService.fetchMemesBatch(
+        categories: cats.isEmpty ? null : cats,
+        limit: max(need, 3), // overfetch a bit for variety
+      );
+
+      // Prepare: precache first few & compute aspect ratio
+      int prepared = 0;
+      for (final meme in batch) {
+        if (meme['imageUrl'] == null) continue;
+        // If we already have this meme in buffer, skip duplicates
+        if (_buffer.any((m) => m['id'] == meme['id'])) continue;
+
+        final preparedMeme = Map<String, dynamic>.from(meme);
+        try {
+          // Compute aspect ratio and precache image
+          final ratio = await _computeAspectRatioAndPrecache(meme['imageUrl']);
+          preparedMeme['aspectRatio'] = ratio;
+        } catch (_) {
+          // If image fails to load, skip
+          continue;
+        }
+
+        _buffer.add(preparedMeme);
+        prepared++;
+        // stop once we've met the target to avoid overfilling
+        if (_buffer.length >= _bufferTarget) break;
+
+        // If a newer fill started, stop this one
+        if (myToken != _prefetchToken) break;
+      }
+
+      if (prepared == 0 && _buffer.isEmpty) {
+        // Fallback: show loading state but avoid loops
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } finally {
+      _isPrefetching = false;
+    }
+  }
+
+  Future<double> _computeAspectRatioAndPrecache(String url) async {
+    final image = NetworkImage(url);
+    final completer = Completer<ImageInfo>();
+    final stream = image.resolve(const ImageConfiguration());
+    late final ImageStreamListener listener;
+
+    listener = ImageStreamListener(
+      (ImageInfo info, bool _) {
+        completer.complete(info);
+        stream.removeListener(listener);
+      },
+      onError: (dynamic error, __) {
+        if (!completer.isCompleted) completer.completeError(error);
+        stream.removeListener(listener);
+      },
+    );
+
+    stream.addListener(listener);
+
+    // Also precache so the next display is instant
+    try {
+      await precacheImage(image, context);
+    } catch (_) {
+      // ignore precache errors; the stream might still deliver dimensions
     }
 
-    if (allMemes.isEmpty) {
-      print('❌ No memes found, retrying...');
-      await Future.delayed(const Duration(seconds: 2));
-      return _getRandomMeme();
-    }
+    final info = await completer.future;
+    final ratio = info.image.width / info.image.height;
+    return ratio == 0 ? 1.0 : ratio.toDouble();
+  }
 
-    final randomDoc = allMemes[Random().nextInt(allMemes.length)];
-    if (!randomDoc.exists || randomDoc['imageUrl'] == null) {
-      print('❌ Invalid meme document: id=${randomDoc.id}');
-      return _getRandomMeme();
+  // NEW: pop next meme from buffer and trigger refill if low
+  void _popNextMeme() {
+    if (_buffer.isEmpty) {
+      setState(() {
+        currentMeme = null;
+        _isLoading = true;
+      });
+      // Fill and try again
+      _fillBuffer().then((_) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            if (_buffer.isNotEmpty) {
+              currentMeme = _buffer.removeAt(0);
+              _resetCard();
+            }
+          });
+        }
+      });
+      return;
     }
-
-    final imageUrl = randomDoc['imageUrl'];
-    final image = NetworkImage(imageUrl);
-    final completer = Completer<void>();
-    image
-        .resolve(const ImageConfiguration())
-        .addListener(
-          ImageStreamListener((ImageInfo info, _) {
-            _aspectRatio = info.image.width / info.image.height;
-            completer.complete();
-          }),
-        );
-    await completer.future;
 
     setState(() {
-      currentMeme = {
-        'id': randomDoc.id,
-        'imageUrl': imageUrl,
-        'shareCount': randomDoc['shareCount'] ?? 0,
-        'likeCount': randomDoc['likeCount'] ?? 0,
-      };
+      currentMeme = _buffer.removeAt(0);
       _isLoading = false;
       _resetCard();
-      print(
-        '✅ Loaded meme: id=${currentMeme!['id']}, shareCount=${currentMeme!['shareCount']}',
-      );
     });
+
+    // Low-watermark refill
+    if (_buffer.length < _lowWatermark) {
+      _fillBuffer();
+    }
   }
 
   void _showFeedback(String emoji) {
@@ -266,7 +350,7 @@ class _HomePageState extends State<HomePage> {
       final liked = dx > 0;
       _showFeedback(liked ? '❤' : '');
       if (liked) await _handleLike();
-      await _getRandomMeme();
+      _animateToNext();
     } else if (dy < -150) {
       await _openShareBottomSheet();
       _resetCard();
@@ -276,6 +360,17 @@ class _HomePageState extends State<HomePage> {
     } else {
       _resetCard();
     }
+  }
+
+  // NEW: smooth transition to next meme
+  void _animateToNext() {
+    // Let the current card fade a touch, then swap
+    setState(() => _opacity = 0.0);
+    Future.delayed(const Duration(milliseconds: 120), () {
+      if (!mounted) return;
+      _popNextMeme();
+      setState(() => _opacity = 1.0);
+    });
   }
 
   Future<void> _handleLike() async {
@@ -298,15 +393,19 @@ class _HomePageState extends State<HomePage> {
 
     setState(() {
       currentMeme!['likeCount'] = (currentMeme!['likeCount'] as int) + 1;
+      // Keep local likedBy in sync if it exists (helps LikeCountBadge)
+      final localLiked = List<String>.from(currentMeme!['likedBy'] ?? []);
+      if (!localLiked.contains(uid)) {
+        localLiked.add(uid);
+        currentMeme!['likedBy'] = localLiked;
+      }
     });
   }
 
   void _resetCard() {
-    setState(() {
-      _position = Offset.zero;
-      _angle = 0;
-      _opacity = 1;
-    });
+    _position = Offset.zero;
+    _angle = 0;
+    _opacity = 1;
   }
 
   Future<void> _toggleSave() async {
@@ -336,14 +435,12 @@ class _HomePageState extends State<HomePage> {
     selectedFriends.clear();
     final currentUser = _auth.currentUser;
     if (currentUser == null || currentMeme == null) {
-      print('❌ No user or meme: user=$currentUser, meme=$currentMeme');
       return;
     }
 
     final userDoc =
         await _firestore.collection('users').doc(currentUser.uid).get();
     if (!userDoc.exists || userDoc.data() == null) {
-      print('❌ User document not found: uid=${currentUser.uid}');
       return;
     }
     final List<String> friends = List<String>.from(
@@ -443,9 +540,6 @@ class _HomePageState extends State<HomePage> {
                                           userDoc.data()!['username']
                                               as String?;
                                       if (senderUsername == null) {
-                                        print(
-                                          '❌ No sender username: uid=${currentUser.uid}',
-                                        );
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
@@ -476,11 +570,7 @@ class _HomePageState extends State<HomePage> {
                                             imageUrl: currentMeme!['imageUrl'],
                                           );
                                           shares++;
-                                          print('✅ Shared meme to $friend');
                                         } catch (e) {
-                                          print(
-                                            '❌ Error sharing to $friend: $e',
-                                          );
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
@@ -520,15 +610,9 @@ class _HomePageState extends State<HomePage> {
                                             setState(() {
                                               currentMeme!['shareCount'] =
                                                   memeDoc['shareCount'] ?? 0;
-                                              print(
-                                                '🔄 Updated shareCount: ${currentMeme!['shareCount']}',
-                                              );
                                             });
                                           } else {
-                                            print(
-                                              '❌ Meme document not found: id=${currentMeme!['id']}',
-                                            );
-                                            await _getRandomMeme();
+                                            await _primeBuffer();
                                           }
                                           Navigator.pop(context);
                                           ScaffoldMessenger.of(
@@ -550,7 +634,6 @@ class _HomePageState extends State<HomePage> {
                                             ),
                                           );
                                         } catch (e) {
-                                          print('❌ Error updating data: $e');
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
@@ -588,12 +671,13 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildCard() {
     if (currentMeme == null || currentMeme!['imageUrl'] == null) {
-      return const SizedBox.shrink(); // Prevent rendering until meme is loaded
+      return const SizedBox.shrink();
     }
 
     final url = currentMeme!['imageUrl'];
     final isSaved = savedMemes.contains(currentMeme!['id']);
-    final shareCount = currentMeme!['shareCount'] ?? 0;
+    // final shareCount = currentMeme!['shareCount'] ?? 0; // Removed unused variable
+    final aspect = (currentMeme!['aspectRatio'] as double?) ?? 1.0;
 
     final memeCard = Padding(
       padding: const EdgeInsets.only(bottom: 90),
@@ -602,26 +686,13 @@ class _HomePageState extends State<HomePage> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(15),
-            child:
-                _aspectRatio != null
-                    ? ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxHeight: 460,
-                        maxWidth: 340,
-                      ),
-                      child: AspectRatio(
-                        aspectRatio: _aspectRatio!,
-                        child: Image.network(url, fit: BoxFit.contain),
-                      ),
-                    )
-                    : const SizedBox(
-                      height: 300,
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.greenAccent,
-                        ),
-                      ),
-                    ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 460, maxWidth: 340),
+              child: AspectRatio(
+                aspectRatio: aspect,
+                child: Image.network(url, fit: BoxFit.contain),
+              ),
+            ),
           ),
           const SizedBox(height: 10),
           Row(
@@ -676,14 +747,30 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    return GestureDetector(
-      onPanUpdate: _onPanUpdate,
-      onPanEnd: _onPanEnd,
-      child: Opacity(
-        opacity: _opacity,
-        child: Transform.translate(
-          offset: _position,
-          child: Transform.rotate(angle: _angle, child: memeCard),
+    // Smooth transition between memes
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, anim) {
+        return FadeTransition(
+          opacity: anim,
+          child: ScaleTransition(
+            scale: Tween(begin: 0.98, end: 1.0).animate(anim),
+            child: child,
+          ),
+        );
+      },
+      child: GestureDetector(
+        key: ValueKey(currentMeme!['id']),
+        onPanUpdate: _onPanUpdate,
+        onPanEnd: _onPanEnd,
+        child: Opacity(
+          opacity: _opacity,
+          child: Transform.translate(
+            offset: _position,
+            child: Transform.rotate(angle: _angle, child: memeCard),
+          ),
         ),
       ),
     );
@@ -758,13 +845,17 @@ class _HomePageState extends State<HomePage> {
                 Icons.filter_alt_outlined,
                 color: Colors.greenAccent,
               ),
-              onSelected: (category) {
+              onSelected: (category) async {
                 setState(() {
-                  selectedCategories.contains(category)
-                      ? selectedCategories.remove(category)
-                      : selectedCategories.add(category);
-                  _getRandomMeme();
+                  if (selectedCategories.contains(category)) {
+                    selectedCategories.remove(category);
+                  } else {
+                    selectedCategories.add(category);
+                  }
                 });
+                // Clear buffer and refill for the selected categories
+                await _fillBuffer(clear: true);
+                _popNextMeme();
               },
               itemBuilder:
                   (context) =>
