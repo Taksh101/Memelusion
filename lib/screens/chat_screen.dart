@@ -60,14 +60,18 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final userDoc = await _firestore.collection('users').doc(uid).get();
       if (userDoc.exists && mounted) {
+        final username = userDoc['username'] as String? ?? uid;
         setState(() {
-          _currentUserUsername = userDoc['username'] as String? ?? uid;
+          _currentUserUsername = username;
         });
+        await _cleanupExpiredMessagesForAllChats(username); // Run cleanup after username is set
       } else {
         setState(() => _currentUserUsername = uid);
+        await _cleanupExpiredMessagesForAllChats(uid);
       }
     } catch (e) {
       setState(() => _currentUserUsername = uid);
+      await _cleanupExpiredMessagesForAllChats(uid);
     }
   }
 
@@ -123,6 +127,24 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _cleanupExpiredMessagesForAllChats(String username) async {
+    final now = Timestamp.now();
+    final chatsSnapshot = await _firestore.collection('chats').get();
+    print('Running expired message cleanup for user: $username');
+    for (final chatDoc in chatsSnapshot.docs) {
+      final chatId = chatDoc.id;
+      if (!chatId.contains(username)) continue;
+      print('Checking chat: $chatId');
+      final messagesRef = chatDoc.reference.collection('messages');
+      final expired = await messagesRef.where('expiresAt', isLessThan: now).get();
+      for (final doc in expired.docs) {
+        print('Deleting expired message: ${doc.id} in chat $chatId');
+        await doc.reference.delete();
+      }
+    }
+    print('Expired message cleanup complete.');
+  }
+
   void showFullScreenImageDialog(BuildContext context, String imageUrl) {
   showDialog(
     context: context,
@@ -150,7 +172,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
+                        color: Colors.black.withAlpha(30),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
