@@ -146,8 +146,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
-  static const int _bufferTarget = 7;
-  static const int _lowWatermark = 2;
+  static const int _bufferTarget = 10; // Increased buffer size for better performance
+  static const int _lowWatermark = 3; // Increased low watermark
 
   // int _unreadNotifCount = 0; // Removed unused field
   final _firestore = FirebaseFirestore.instance;
@@ -169,6 +169,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final List<Map<String, dynamic>> _buffer = [];
   bool _isPrefetching = false;
   int _prefetchToken = 0; // to cancel stale fills
+  bool _isBufferEmpty = false; // track if buffer is empty to prevent infinite loops
+  Timer? _refillTimer; // debounced refill timer
+  DateTime? _lastRefillTime; // track last refill time to prevent rapid requests
+  Timer? _bufferHealthTimer; // periodic buffer health check
+  Set<String> _likedMemes = {}; // track recently liked memes to prevent double-liking
 
   @override
   void initState() {
@@ -178,10 +183,44 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _loadUnreadNotifications();
   }
 
+  @override
+  void dispose() {
+    _refillTimer?.cancel();
+    _bufferHealthTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reset buffer state when returning to this screen
+    if (_buffer.isEmpty && !_isLoading && !_isPrefetching) {
+      _isBufferEmpty = false;
+      _primeBuffer();
+    }
+  }
+
+  // Add a method to force refresh the buffer
+  void _forceRefreshBuffer() {
+    _isBufferEmpty = false;
+    _isPrefetching = false;
+    _buffer.clear();
+    _primeBuffer();
+  }
+
   Future<void> _primeBuffer() async {
     setState(() => _isLoading = true);
     await _fillBuffer(clear: true);
     _popNextMeme();
+    
+    // Start periodic buffer health check
+    _bufferHealthTimer?.cancel();
+    _bufferHealthTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (mounted && _buffer.isEmpty && !_isLoading && !_isPrefetching) {
+        // Buffer is stuck, force refresh
+        _forceRefreshBuffer();
+      }
+    });
   }
 
   Future<void> _loadUnreadNotifications() async {
@@ -208,7 +247,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // NEW: fill/refresh buffer (category-aware)
   Future<void> _fillBuffer({bool clear = false}) async {
     if (_isPrefetching) return;
+    
+    // Prevent rapid refill requests
+    final now = DateTime.now();
+    if (_lastRefillTime != null && 
+        now.difference(_lastRefillTime!).inMilliseconds < 500) {
+      return;
+    }
+    
     _isPrefetching = true;
+    _lastRefillTime = now;
     final myToken = ++_prefetchToken;
 
     try {
@@ -222,6 +270,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         categories: cats.isEmpty ? null : cats,
         limit: max(need, 3), // overfetch a bit for variety
       );
+
+      // Check if this operation was cancelled during the fetch
+      if (myToken != _prefetchToken) return;
 
       // Prepare: precache first few & compute aspect ratio
       int prepared = 0;
@@ -248,6 +299,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         // If a newer fill started, stop this one
         if (myToken != _prefetchToken) break;
       }
+
+      // Update buffer empty state
+      _isBufferEmpty = _buffer.isEmpty;
 
       if (prepared == 0 && _buffer.isEmpty) {
         // Fallback: show loading state but avoid loops
@@ -300,18 +354,35 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         currentMeme = null;
         _isLoading = true;
       });
-      // Fill and try again
-      _fillBuffer().then((_) {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            if (_buffer.isNotEmpty) {
-              currentMeme = _buffer.removeAt(0);
-              _resetCard();
-            }
-          });
-        }
-      });
+      
+      // Only try to fill if we're not already in an empty state
+      if (!_isBufferEmpty) {
+        _fillBuffer().then((_) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              if (_buffer.isNotEmpty) {
+                currentMeme = _buffer.removeAt(0);
+                _resetCard();
+              }
+            });
+          }
+        });
+      } else {
+        // If buffer is empty, try to reset and fill again
+        _isBufferEmpty = false;
+        _fillBuffer().then((_) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              if (_buffer.isNotEmpty) {
+                currentMeme = _buffer.removeAt(0);
+                _resetCard();
+              }
+            });
+          }
+        });
+      }
       return;
     }
 
@@ -321,9 +392,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _resetCard();
     });
 
-    // Low-watermark refill
+    // Update buffer empty state
+    _isBufferEmpty = _buffer.isEmpty;
+
+    // Low-watermark refill - be more aggressive when buffer is getting low
     if (_buffer.length < _lowWatermark) {
-      _fillBuffer();
+      // Cancel any pending refill timer
+      _refillTimer?.cancel();
+      // Debounce rapid refill requests
+      _refillTimer = Timer(const Duration(milliseconds: 50), () {
+        if (mounted && _buffer.length < _lowWatermark) {
+          _fillBuffer();
+        }
+      });
     }
   }
 
@@ -349,7 +430,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (dx.abs() > 150) {
       final liked = dx > 0;
       _showFeedback(liked ? '❤' : '');
-      if (liked) await _handleLike();
+      // Handle like asynchronously without blocking the animation
+      if (liked && currentMeme != null) {
+        final memeId = currentMeme!['id'];
+        // Prevent double-liking the same meme
+        if (!_likedMemes.contains(memeId)) {
+          _likedMemes.add(memeId);
+          _handleLike().catchError((error) {
+            // Silently handle errors to not block UI
+            print('Like error: $error');
+            // Remove from liked set on error so user can retry
+            _likedMemes.remove(memeId);
+          });
+        }
+      }
       _animateToNext();
     } else if (dy < -150) {
       await _openShareBottomSheet();
@@ -366,7 +460,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _animateToNext() {
     // Let the current card fade a touch, then swap
     setState(() => _opacity = 0.0);
-    Future.delayed(const Duration(milliseconds: 120), () {
+    Future.delayed(const Duration(milliseconds: 80), () {
       if (!mounted) return;
       _popNextMeme();
       setState(() => _opacity = 1.0);
@@ -377,20 +471,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final uid = _auth.currentUser?.uid;
     if (uid == null || currentMeme == null) return;
 
-    final memeRef = _firestore.collection('memes').doc(currentMeme!['id']);
-    final userRef = _firestore.collection('users').doc(uid);
-    final snap = await memeRef.get();
-    final likedBy = List<String>.from(snap['likedBy'] ?? []);
-
-    if (likedBy.contains(uid)) return;
-
-    await memeRef.update({
-      'likeCount': FieldValue.increment(1),
-      'likedBy': FieldValue.arrayUnion([uid]),
-    });
-
-    await userRef.update({'likedMemesCount': FieldValue.increment(1)});
-
+    final memeId = currentMeme!['id'];
+    
+    // Optimistically update UI first for better responsiveness
     setState(() {
       currentMeme!['likeCount'] = (currentMeme!['likeCount'] as int) + 1;
       // Keep local likedBy in sync if it exists (helps LikeCountBadge)
@@ -400,6 +483,45 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         currentMeme!['likedBy'] = localLiked;
       }
     });
+
+    // Then update backend asynchronously
+    try {
+      final memeRef = _firestore.collection('memes').doc(memeId);
+      final userRef = _firestore.collection('users').doc(uid);
+      
+      // Check if already liked to prevent double-liking
+      final snap = await memeRef.get();
+      final likedBy = List<String>.from(snap['likedBy'] ?? []);
+      
+      if (likedBy.contains(uid)) {
+        // Revert optimistic update if already liked
+        setState(() {
+          currentMeme!['likeCount'] = (currentMeme!['likeCount'] as int) - 1;
+          final localLiked = List<String>.from(currentMeme!['likedBy'] ?? []);
+          localLiked.remove(uid);
+          currentMeme!['likedBy'] = localLiked;
+        });
+        return;
+      }
+
+      // Update both documents concurrently
+      await Future.wait([
+        memeRef.update({
+          'likeCount': FieldValue.increment(1),
+          'likedBy': FieldValue.arrayUnion([uid]),
+        }),
+        userRef.update({'likedMemesCount': FieldValue.increment(1)}),
+      ]);
+    } catch (error) {
+      // Revert optimistic update on error
+      setState(() {
+        currentMeme!['likeCount'] = (currentMeme!['likeCount'] as int) - 1;
+        final localLiked = List<String>.from(currentMeme!['likedBy'] ?? []);
+        localLiked.remove(uid);
+        currentMeme!['likedBy'] = localLiked;
+      });
+      rethrow;
+    }
   }
 
   void _resetCard() {
@@ -943,6 +1065,39 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               if (_isLoading)
                 const Center(
                   child: CircularProgressIndicator(color: Colors.greenAccent),
+                )
+              else if (currentMeme == null)
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.grey,
+                        size: 64,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No memes available',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 18,
+                          fontFamily: 'Inter',
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          _forceRefreshBuffer();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.greenAccent,
+                          foregroundColor: Colors.black,
+                        ),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
                 )
               else
                 Center(child: _buildCard()),
