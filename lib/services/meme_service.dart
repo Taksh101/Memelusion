@@ -78,6 +78,7 @@ class MemeService {
 
       return take;
     } catch (e) {
+      // Return empty list on error to prevent crashes
       return [];
     }
   }
